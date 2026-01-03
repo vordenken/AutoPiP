@@ -3,6 +3,25 @@
     <channel>
         <title>AutoPiP Updates</title>
         <item>
+            <title>Version 1.0.1</title>
+            <description>
+                <![CDATA[
+                    <h3>Bugfixes</h3>
+                    <ul>
+                        <li>Fixed issue where clicking into YouTube live chat would incorrectly activate PiP mode</li>
+                        <li>Improved focus detection to prevent PiP activation on internal page interactions</li>
+                    </ul>
+                ]]>
+            </description>
+            <pubDate>Fri, 03 Jan 2026 19:00:00 +0000</pubDate>
+            <enclosure
+                url="https://github.com/vordenken/autopip/releases/download/v1.0.1/AutoPiP.dmg"
+                sparkle:version="1.0.1"
+                sparkle:edSignature="jSpqiCQBAyMpPBOY2E+pf4tPDNf4uIuY7U1cTqmiPxI03bv/HZv3KkVP5FpPeHQJxeiGXvpGtrIap3j7MR1jDA=="
+                length="1656450"
+                type="application/octet-stream"/>
+        </item>
+        <item>
             <title>Version 1.0</title>
             <description>
                 <![CDATA[
