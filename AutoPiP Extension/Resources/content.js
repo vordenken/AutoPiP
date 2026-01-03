@@ -121,13 +121,22 @@ window.addEventListener("blur", (event) => {
         return;
     }
     
-    const video = getVideo();
-    if (!video) return;
+    // Wait briefly to check if focus moved to another element within the same document
+    setTimeout(() => {
+        // If focus is still within the document, it's just an internal focus change (e.g., clicking chat)
+        if (document.hasFocus()) {
+            console.log('Focus is still within document, ignoring blur');
+            return;
+        }
+        
+        const video = getVideo();
+        if (!video) return;
 
-    if (!video.paused && video.currentTime > 0 && !video.ended) {
-        console.log('Enabling PiP on window blur');
-        enablePiP();
-    }
+        if (!video.paused && video.currentTime > 0 && !video.ended) {
+            console.log('Enabling PiP on window blur');
+            enablePiP();
+        }
+    }, 100);
 });
 
 window.addEventListener("focus", (event) => {

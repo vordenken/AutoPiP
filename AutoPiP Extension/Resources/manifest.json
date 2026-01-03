@@ -1,7 +1,7 @@
 {
     "manifest_version": 2,
     "name": "AutoPiP",
-    "version": "1.0",
+    "version": "1.0.1",
     "default_locale": "en",
     "description": "Automatically enables Picture-in-Picture mode when switching tabs, windows or scrolling down youtube videos",
     "icons": {
