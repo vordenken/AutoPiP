@@ -36,6 +36,47 @@ body {
     align-items: center;
     justify-content: center;
     margin-bottom: 20px;
+    gap: 12px;
+}
+
+.app-icon {
+    width: 48px;
+    height: 48px;
+    cursor: pointer;
+    transition: transform 0.1s;
+    user-select: none;
+}
+
+.app-icon:active {
+    transform: scale(0.95);
+}
+
+.header-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.app-name {
+    font-size: 18px;
+    font-weight: bold;
+    color: var(--text-color);
+}
+
+.version {
+    font-size: 12px;
+    color: var(--secondary-text-color);
+}
+
+.advanced-settings {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out;
+    margin-bottom: 0;
+}
+
+.advanced-settings.open {
+    max-height: 100px;
+    margin-bottom: 20px;
 }
 
 .app-icon {

@@ -1,16 +1,30 @@
 // content.js
+
+// Configuration constants
+const FOCUS_CHECK_DELAY_MS = 100; // Delay to distinguish internal focus changes from actual window blur
+let DEBUG_LOGGING = false; // Can be toggled via popup settings
+
+// State variables
 let tabSwitchEnabled = true;
 let windowSwitchEnabled = true;
 let scrollSwitchEnabled = true;
 let lastScrollPosition = window.scrollY;
 let isVideoVisible = true;
 
+// Debug logging helper
+function debugLog(...args) {
+    if (DEBUG_LOGGING) {
+        console.log('[AutoPiP]', ...args);
+    }
+}
+
 // Load initial status
-browser.storage.local.get(['tabSwitchEnabled', 'windowSwitchEnabled', 'scrollSwitchEnabled'], function(result) {
+browser.storage.local.get(['tabSwitchEnabled', 'windowSwitchEnabled', 'scrollSwitchEnabled', 'debugLoggingEnabled'], function(result) {
     tabSwitchEnabled = result.tabSwitchEnabled === undefined ? true : result.tabSwitchEnabled;
     windowSwitchEnabled = result.windowSwitchEnabled === undefined ? true : result.windowSwitchEnabled;
     scrollSwitchEnabled = result.scrollSwitchEnabled === undefined ? true : result.scrollSwitchEnabled;
-    console.log('Initial status loaded - Tab Switch:', tabSwitchEnabled,
+    DEBUG_LOGGING = result.debugLoggingEnabled === undefined ? false : result.debugLoggingEnabled;
+    debugLog('Initial status loaded - Tab Switch:', tabSwitchEnabled,
                 'Window Switch:', windowSwitchEnabled,
                 'Scroll Switch:', scrollSwitchEnabled);
 });
@@ -19,7 +33,7 @@ browser.storage.local.get(['tabSwitchEnabled', 'windowSwitchEnabled', 'scrollSwi
 browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.command === "toggleTabSwitch") {
         tabSwitchEnabled = message.enabled;
-        console.log('Tab Switch toggled to:', tabSwitchEnabled);
+        debugLog('Tab Switch toggled to:', tabSwitchEnabled);
         
         if (!tabSwitchEnabled) {
             const video = getVideo();
@@ -33,7 +47,7 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
     else if (message.command === "toggleWindowSwitch") {
         windowSwitchEnabled = message.enabled;
-        console.log('Window Switch toggled to:', windowSwitchEnabled);
+        debugLog('Window Switch toggled to:', windowSwitchEnabled);
         
         if (!windowSwitchEnabled) {
             const video = getVideo();
@@ -47,7 +61,7 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
     else if (message.command === "toggleScrollSwitch") {
         scrollSwitchEnabled = message.enabled;
-        console.log('Scroll Switch toggled to:', scrollSwitchEnabled);
+        debugLog('Scroll Switch toggled to:', scrollSwitchEnabled);
         
         if (!scrollSwitchEnabled) {
             const video = getVideo();
@@ -57,6 +71,13 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
         
         sendResponse({enabled: scrollSwitchEnabled});
+        return true;
+    }
+    else if (message.command === "toggleDebugLogging") {
+        DEBUG_LOGGING = message.enabled;
+        debugLog('Debug Logging toggled to:', DEBUG_LOGGING);
+        
+        sendResponse({enabled: DEBUG_LOGGING});
         return true;
     }
 });
@@ -87,23 +108,23 @@ document.addEventListener("visibilitychange", (event) => {
 
     // Check if tab switch is enabled before proceeding
     if (!tabSwitchEnabled) {
-        console.log('Tab switch is disabled, ignoring visibility change');
+        debugLog('Tab switch is disabled, ignoring visibility change');
         return;
     }
 
     const video = getVideo();
     if (!video) return;
 
-    console.log('Tab visibility changed, hidden:', document.hidden);
+    debugLog('Tab visibility changed, hidden:', document.hidden);
 
     if (document.hidden) {
         if (!video.paused && video.currentTime > 0 && !video.ended) {
-            console.log('Enabling PiP on tab switch');
+            debugLog('Enabling PiP on tab switch');
             enablePiP();
         }
     } else {
         if (document.hasFocus() && isPiPActive(video)) {
-            console.log('Disabling PiP on tab switch');
+            debugLog('Disabling PiP on tab switch');
             disablePiP();
         }
     }
@@ -117,7 +138,7 @@ window.addEventListener("blur", (event) => {
 
     // Check if window switch is enabled before proceeding
     if (!windowSwitchEnabled) {
-        console.log('Window switch is disabled, ignoring blur');
+        debugLog('Window switch is disabled, ignoring blur');
         return;
     }
     
@@ -125,7 +146,7 @@ window.addEventListener("blur", (event) => {
     setTimeout(() => {
         // If focus is still within the document, it's just an internal focus change (e.g., clicking chat)
         if (document.hasFocus()) {
-            console.log('Focus is still within document, ignoring blur');
+            debugLog('Focus is still within document, ignoring blur');
             return;
         }
         
@@ -133,10 +154,10 @@ window.addEventListener("blur", (event) => {
         if (!video) return;
 
         if (!video.paused && video.currentTime > 0 && !video.ended) {
-            console.log('Enabling PiP on window blur');
+            debugLog('Enabling PiP on window blur');
             enablePiP();
         }
-    }, 100);
+    }, FOCUS_CHECK_DELAY_MS);
 });
 
 window.addEventListener("focus", (event) => {
@@ -147,7 +168,7 @@ window.addEventListener("focus", (event) => {
 
     // Check if window switch is enabled before proceeding
     if (!windowSwitchEnabled) {
-        console.log('Window switch is disabled, ignoring focus');
+        debugLog('Window switch is disabled, ignoring focus');
         return;
     }
 
@@ -155,7 +176,7 @@ window.addEventListener("focus", (event) => {
     if (!video) return;
 
     if (!document.hidden && document.hasFocus() && isPiPActive(video)) {
-        console.log('Disabling PiP on window focus');
+        debugLog('Disabling PiP on window focus');
         disablePiP();
     }
 });
@@ -163,7 +184,7 @@ window.addEventListener("focus", (event) => {
 // Scroll event listener
 window.addEventListener('scroll', debounce(() => {
     if (!scrollSwitchEnabled) {
-        console.log('Scroll switch is disabled, ignoring scroll');
+        debugLog('Scroll switch is disabled, ignoring scroll');
         return;
     }
 
@@ -173,11 +194,11 @@ window.addEventListener('scroll', debounce(() => {
     const videoVisible = isElementInViewport(video);
     
     if (!videoVisible && isVideoVisible && !video.paused) {
-        console.log('Video scrolled out of view, enabling PiP');
+        debugLog('Video scrolled out of view, enabling PiP');
         enablePiP();
         isVideoVisible = false;
     } else if (videoVisible && !isVideoVisible) {
-        console.log('Video scrolled into view, disabling PiP');
+        debugLog('Video scrolled into view, disabling PiP');
         disablePiP();
         isVideoVisible = true;
     }
@@ -262,7 +283,7 @@ function enablePiP() {
                 video.requestPictureInPicture()
                     .catch(console.error);
             }
-            console.log('PiP enabled successfully');
+            debugLog('PiP enabled successfully');
         } catch (error) {
             console.error('PiP enable error:', error);
         }
@@ -280,7 +301,7 @@ function disablePiP() {
         } else if (document.pictureInPictureElement) {
             document.exitPictureInPicture();
         }
-        console.log('PiP disabled successfully');
+        debugLog('PiP disabled successfully');
     } catch (error) {
         console.error('PiP disable error:', error);
     }

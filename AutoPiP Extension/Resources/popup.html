@@ -6,10 +6,17 @@
 </head>
 <body>
     <div class="header">
-        <img src="images/icon-128.png" class="app-icon" alt="AutoPiP">
-        <div>
+        <img src="images/icon-128.png" class="app-icon" id="appIcon" alt="AutoPiP">
+        <div class="header-info">
             <div class="app-name">AutoPiP</div>
-            <div class="version">v1.0.1</div>
+            <div class="version" id="version"></div>
+        </div>
+    </div>
+
+    <div class="advanced-settings" id="advancedSettings">
+        <div class="setting">
+            <label for="debugLoggingCheckbox">Debug Logging</label>
+            <input type="checkbox" class="checkbox" id="debugLoggingCheckbox">
         </div>
     </div>
 
