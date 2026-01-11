@@ -73,8 +73,9 @@ async function safeStorageGet(keys, defaults = {}) {
 })();
 
 // === MESSAGE HANDLERS ===
-browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.command === "toggleTabSwitch") {
+// Message handler map
+const messageHandlers = {
+    toggleTabSwitch: (message) => {
         tabSwitchEnabled = message.enabled;
         debugLog('Tab Switch toggled to:', tabSwitchEnabled);
         
@@ -85,10 +86,10 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
             }
         }
         
-        sendResponse({enabled: tabSwitchEnabled});
-        return true;
-    }
-    else if (message.command === "toggleWindowSwitch") {
+        return { enabled: tabSwitchEnabled };
+    },
+    
+    toggleWindowSwitch: (message) => {
         windowSwitchEnabled = message.enabled;
         debugLog('Window Switch toggled to:', windowSwitchEnabled);
         
@@ -99,10 +100,10 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
             }
         }
         
-        sendResponse({enabled: windowSwitchEnabled});
-        return true;
-    }
-    else if (message.command === "toggleScrollSwitch") {
+        return { enabled: windowSwitchEnabled };
+    },
+    
+    toggleScrollSwitch: (message) => {
         scrollSwitchEnabled = message.enabled;
         debugLog('Scroll Switch toggled to:', scrollSwitchEnabled);
         
@@ -113,17 +114,17 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
             }
         }
         
-        sendResponse({enabled: scrollSwitchEnabled});
-        return true;
-    }
-    else if (message.command === "toggleDebugLogging") {
+        return { enabled: scrollSwitchEnabled };
+    },
+    
+    toggleDebugLogging: (message) => {
         DEBUG_LOGGING = message.enabled;
         debugLog('Debug Logging toggled to:', DEBUG_LOGGING);
         
-        sendResponse({enabled: DEBUG_LOGGING});
-        return true;
-    }
-    else if (message.command === "updateBlacklist") {
+        return { enabled: DEBUG_LOGGING };
+    },
+    
+    updateBlacklist: (message) => {
         blacklistedSites = message.sites || [];
         debugLog('Blacklist updated to:', blacklistedSites);
         debugLog('Current hostname:', window.location.hostname, 'is blacklisted:', isBlacklisted());
@@ -137,9 +138,20 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
             }
         }
         
-        sendResponse({success: true});
+        return { success: true };
+    }
+};
+
+browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    const handler = messageHandlers[message.command];
+    
+    if (handler) {
+        const response = handler(message);
+        sendResponse(response);
         return true;
     }
+    
+    return false;
 });
 
 // Check if current site is blacklisted
@@ -338,6 +350,7 @@ function getVideo() {
     return document.querySelector('video');
 }
 
+// === PIP CONTROL FUNCTIONS ===
 function enablePiP() {
     // Check if current site is blacklisted
     if (isBlacklisted()) {
@@ -353,17 +366,10 @@ function enablePiP() {
     
     if (!video.paused && video.currentTime > 0 && !video.ended) {
         try {
-            if (video.webkitSupportsPresentationMode &&
-                typeof video.webkitSetPresentationMode === "function") {
+            if (video.webkitSupportsPresentationMode && 
+                typeof video.webkitSetPresentationMode === 'function') {
                 video.webkitSetPresentationMode('picture-in-picture');
-                debugLog('PiP enabled successfully (webkit)');
-            } else if (typeof video.requestPictureInPicture === "function") {
-                video.requestPictureInPicture()
-                    .then(() => debugLog('PiP enabled successfully (standard)'))
-                    .catch(error => {
-                        console.error('[AutoPiP] PiP request failed:', error.message || error);
-                        debugLog('PiP activation failed:', error.name);
-                    });
+                debugLog('PiP enabled successfully');
             } else {
                 debugLog('PiP not supported on this video element');
             }
@@ -388,17 +394,10 @@ function disablePiP() {
     }
 
     try {
-        if (video.webkitSupportsPresentationMode &&
-            typeof video.webkitSetPresentationMode === "function") {
+        if (video.webkitSupportsPresentationMode && 
+            typeof video.webkitSetPresentationMode === 'function') {
             video.webkitSetPresentationMode('inline');
-            debugLog('PiP disabled successfully (webkit)');
-        } else if (document.pictureInPictureElement) {
-            document.exitPictureInPicture()
-                .then(() => debugLog('PiP disabled successfully (standard)'))
-                .catch(error => {
-                    console.error('[AutoPiP] PiP exit failed:', error.message || error);
-                    debugLog('PiP exit failed:', error.name);
-                });
+            debugLog('PiP disabled successfully');
         } else {
             debugLog('No active PiP to disable');
         }

@@ -126,40 +126,22 @@ backButton.addEventListener('click', showMainView);
 })();
 
 // === EVENT LISTENERS ===
-tabSwitchCheckbox.addEventListener('change', async function() {
-    const enabled = tabSwitchCheckbox.checked;
-    console.log('Tab Switch changed to:', enabled);
+// Generic toggle handler factory
+function createToggleHandler(checkbox, storageKey, command) {
+    return async function() {
+        const enabled = checkbox.checked;
+        console.log(`${storageKey} changed to:`, enabled);
+        
+        await safeStorageSet({ [storageKey]: enabled });
+        updateAllTabs(command, enabled);
+    };
+}
 
-    await safeStorageSet({ tabSwitchEnabled: enabled });
-    updateAllTabs('toggleTabSwitch', enabled);
-});
-
-// Window Switch Checkbox Event Listener
-windowSwitchCheckbox.addEventListener('change', async function() {
-    const enabled = windowSwitchCheckbox.checked;
-    console.log('Window Switch changed to:', enabled);
-
-    await safeStorageSet({ windowSwitchEnabled: enabled });
-    updateAllTabs('toggleWindowSwitch', enabled);
-});
-
-// Scroll Switch Checkbox Event Listener
-scrollSwitchCheckbox.addEventListener('change', async function() {
-    const enabled = scrollSwitchCheckbox.checked;
-    console.log('Scroll Switch changed to:', enabled);
-
-    await safeStorageSet({ scrollSwitchEnabled: enabled });
-    updateAllTabs('toggleScrollSwitch', enabled);
-});
-
-// Debug Logging Checkbox Event Listener
-debugLoggingCheckbox.addEventListener('change', async function() {
-    const enabled = debugLoggingCheckbox.checked;
-    console.log('Debug Logging changed to:', enabled);
-
-    await safeStorageSet({ debugLoggingEnabled: enabled });
-    updateAllTabs('toggleDebugLogging', enabled);
-});
+// Setup toggle event listeners
+tabSwitchCheckbox.addEventListener('change', createToggleHandler(tabSwitchCheckbox, 'tabSwitchEnabled', 'toggleTabSwitch'));
+windowSwitchCheckbox.addEventListener('change', createToggleHandler(windowSwitchCheckbox, 'windowSwitchEnabled', 'toggleWindowSwitch'));
+scrollSwitchCheckbox.addEventListener('change', createToggleHandler(scrollSwitchCheckbox, 'scrollSwitchEnabled', 'toggleScrollSwitch'));
+debugLoggingCheckbox.addEventListener('change', createToggleHandler(debugLoggingCheckbox, 'debugLoggingEnabled', 'toggleDebugLogging'));
 
 // Hostname Toggle Event Listener
 hostnameToggle.addEventListener('change', async function() {
