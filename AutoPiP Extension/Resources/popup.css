@@ -502,16 +502,14 @@ hr {
 
 .settings-icon {
     font-size: 20px;
+    line-height: 1;
     display: inline-block;
-    transition: transform 0.3s ease;
-}
-
-.link-container:hover .settings-icon {
-    transform: rotate(90deg);
+    transform: translate(0.5px, -0.5px);
 }
 
 #settingsButton {
     cursor: pointer;
+    flex-direction: column;
 }
 
 /* Toggle Switch Styles */
