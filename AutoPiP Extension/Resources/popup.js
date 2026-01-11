@@ -26,7 +26,48 @@ let currentTabUrl = null;
 const version = 'v' + browser.runtime.getManifest().version;
 document.getElementById('version').textContent = version;
 
-// View Navigation
+// === ERROR HANDLING & STORAGE HELPERS ===
+
+/**
+ * Safely get values from browser storage with error handling
+ * @param {Array|Object} keys - Storage keys to retrieve
+ * @param {Object} defaults - Default values if storage fails
+ * @returns {Promise<Object>} - Storage result or defaults
+ */
+async function safeStorageGet(keys, defaults = {}) {
+    try {
+        const result = await browser.storage.local.get(keys);
+        if (browser.runtime.lastError) {
+            console.error('[AutoPiP] Storage get error:', browser.runtime.lastError);
+            return defaults;
+        }
+        return result;
+    } catch (error) {
+        console.error('[AutoPiP] Storage get exception:', error);
+        return defaults;
+    }
+}
+
+/**
+ * Safely set values to browser storage with error handling
+ * @param {Object} items - Key-value pairs to store
+ * @returns {Promise<boolean>} - Success status
+ */
+async function safeStorageSet(items) {
+    try {
+        await browser.storage.local.set(items);
+        if (browser.runtime.lastError) {
+            console.error('[AutoPiP] Storage set error:', browser.runtime.lastError);
+            return false;
+        }
+        return true;
+    } catch (error) {
+        console.error('[AutoPiP] Storage set exception:', error);
+        return false;
+    }
+}
+
+// === VIEW NAVIGATION ===
 function showMainView() {
     mainView.classList.remove('hidden');
     settingsView.classList.add('hidden');
@@ -40,8 +81,24 @@ function showSettingsView() {
 settingsButton.addEventListener('click', showSettingsView);
 backButton.addEventListener('click', showMainView);
 
-// Load saved status
-browser.storage.local.get(['tabSwitchEnabled', 'windowSwitchEnabled', 'scrollSwitchEnabled', 'debugLoggingEnabled', 'blacklistedSites', 'blacklistUseFullHostname'], function(result) {
+// === INITIALIZATION ===
+
+// Load saved status with error handling
+(async function initializePopup() {
+    const defaults = {
+        tabSwitchEnabled: true,
+        windowSwitchEnabled: true,
+        scrollSwitchEnabled: true,
+        debugLoggingEnabled: false,
+        blacklistedSites: [],
+        blacklistUseFullHostname: true
+    };
+    
+    const result = await safeStorageGet(
+        ['tabSwitchEnabled', 'windowSwitchEnabled', 'scrollSwitchEnabled', 'debugLoggingEnabled', 'blacklistedSites', 'blacklistUseFullHostname'],
+        defaults
+    );
+    
     const tabEnabled = result.tabSwitchEnabled ?? true;
     const windowEnabled = result.windowSwitchEnabled ?? true;
     const scrollEnabled = result.scrollSwitchEnabled ?? true;
@@ -66,50 +123,50 @@ browser.storage.local.get(['tabSwitchEnabled', 'windowSwitchEnabled', 'scrollSwi
     // Load current tab and update UI
     loadCurrentTab();
     renderBlacklistUI();
-});
+})();
 
-// Tab Switch Checkbox Event Listener
-tabSwitchCheckbox.addEventListener('change', function() {
+// === EVENT LISTENERS ===
+tabSwitchCheckbox.addEventListener('change', async function() {
     const enabled = tabSwitchCheckbox.checked;
     console.log('Tab Switch changed to:', enabled);
 
-    browser.storage.local.set({ tabSwitchEnabled: enabled });
+    await safeStorageSet({ tabSwitchEnabled: enabled });
     updateAllTabs('toggleTabSwitch', enabled);
 });
 
 // Window Switch Checkbox Event Listener
-windowSwitchCheckbox.addEventListener('change', function() {
+windowSwitchCheckbox.addEventListener('change', async function() {
     const enabled = windowSwitchCheckbox.checked;
     console.log('Window Switch changed to:', enabled);
 
-    browser.storage.local.set({ windowSwitchEnabled: enabled });
+    await safeStorageSet({ windowSwitchEnabled: enabled });
     updateAllTabs('toggleWindowSwitch', enabled);
 });
 
 // Scroll Switch Checkbox Event Listener
-scrollSwitchCheckbox.addEventListener('change', function() {
+scrollSwitchCheckbox.addEventListener('change', async function() {
     const enabled = scrollSwitchCheckbox.checked;
     console.log('Scroll Switch changed to:', enabled);
 
-    browser.storage.local.set({ scrollSwitchEnabled: enabled });
+    await safeStorageSet({ scrollSwitchEnabled: enabled });
     updateAllTabs('toggleScrollSwitch', enabled);
 });
 
 // Debug Logging Checkbox Event Listener
-debugLoggingCheckbox.addEventListener('change', function() {
+debugLoggingCheckbox.addEventListener('change', async function() {
     const enabled = debugLoggingCheckbox.checked;
     console.log('Debug Logging changed to:', enabled);
 
-    browser.storage.local.set({ debugLoggingEnabled: enabled });
+    await safeStorageSet({ debugLoggingEnabled: enabled });
     updateAllTabs('toggleDebugLogging', enabled);
 });
 
 // Hostname Toggle Event Listener
-hostnameToggle.addEventListener('change', function() {
+hostnameToggle.addEventListener('change', async function() {
     blacklistUseFullHostname = hostnameToggle.checked;
     console.log('Hostname mode changed to:', blacklistUseFullHostname ? 'full' : 'root');
     
-    browser.storage.local.set({ blacklistUseFullHostname: blacklistUseFullHostname });
+    await safeStorageSet({ blacklistUseFullHostname: blacklistUseFullHostname });
     
     // Update current hostname display
     if (currentTabUrl) {
@@ -121,16 +178,17 @@ hostnameToggle.addEventListener('change', function() {
 
 // Site Toggle Event Listener
 siteToggle.addEventListener('change', function() {
-    if (!currentTabUrl) return;
+    if (!currentTabUrl) {
+        console.warn('[AutoPiP] No current tab URL available');
+        return;
+    }
     
     const hostname = extractHostname(currentTabUrl, blacklistUseFullHostname);
     const isEnabled = siteToggle.checked;
     
     if (isEnabled) {
-        // Remove from blacklist
         removeFromBlacklist(hostname);
     } else {
-        // Add to blacklist
         addToBlacklist(hostname);
     }
 });
@@ -151,18 +209,27 @@ function updateAllTabs(command, enabled = null, sites = undefined) {
             if (sites !== undefined) {
                 message.sites = sites;
             }
-            browser.tabs.sendMessage(tab.id, message).catch(err => 
-                console.log('Error sending message to tab:', err)
-            );
+            browser.tabs.sendMessage(tab.id, message)
+                .catch(err => console.warn('[AutoPiP] Failed to send message to tab:', err.message || err));
         });
     });
 }
 
 // Extract hostname from URL based on settings
 function extractHostname(url, useFullHostname) {
+    if (!url || typeof url !== 'string') {
+        console.error('[AutoPiP] Invalid URL provided to extractHostname:', url);
+        return '';
+    }
+    
     try {
         const urlObj = new URL(url);
         const hostname = urlObj.hostname;
+        
+        if (!hostname) {
+            console.warn('[AutoPiP] URL has no hostname:', url);
+            return '';
+        }
         
         if (useFullHostname) {
             return hostname;
@@ -174,8 +241,8 @@ function extractHostname(url, useFullHostname) {
             }
             return hostname;
         }
-    } catch (e) {
-        console.error('Error extracting hostname:', e);
+    } catch (error) {
+        console.error('[AutoPiP] Error extracting hostname from URL:', url, error.message || error);
         return '';
     }
 }
@@ -186,8 +253,13 @@ function loadCurrentTab() {
         if (tabs.length > 0 && tabs[0].url) {
             currentTabUrl = tabs[0].url;
             const hostname = extractHostname(currentTabUrl, blacklistUseFullHostname);
-            currentHostnameSpan.textContent = hostname;
-            updateSiteToggle(hostname);
+            if (hostname) {
+                currentHostnameSpan.textContent = hostname;
+                updateSiteToggle(hostname);
+            } else {
+                currentHostnameSpan.textContent = 'Invalid URL';
+                siteToggle.disabled = true;
+            }
         } else {
             currentHostnameSpan.textContent = 'No active tab';
             siteToggle.disabled = true;
@@ -197,38 +269,51 @@ function loadCurrentTab() {
 
 // Update site toggle checkbox based on blacklist status
 function updateSiteToggle(hostname) {
+    if (!hostname) {
+        console.warn('[AutoPiP] updateSiteToggle called with empty hostname');
+        siteToggle.disabled = true;
+        return;
+    }
     const isBlacklisted = blacklistedSites.includes(hostname);
     siteToggle.checked = !isBlacklisted;
+    siteToggle.disabled = false;
 }
 
 // Add site to blacklist
 function addToBlacklist(hostname) {
+    if (!hostname) {
+        console.warn('[AutoPiP] Attempted to add empty hostname to blacklist');
+        return;
+    }
     if (!blacklistedSites.includes(hostname)) {
         blacklistedSites.push(hostname);
+        console.log('[AutoPiP] Added to blacklist:', hostname);
         saveBlacklist();
     }
 }
 
 // Remove site from blacklist
 function removeFromBlacklist(hostname) {
+    if (!hostname) {
+        console.warn('[AutoPiP] Attempted to remove empty hostname from blacklist');
+        return;
+    }
     const index = blacklistedSites.indexOf(hostname);
     if (index > -1) {
         blacklistedSites.splice(index, 1);
+        console.log('[AutoPiP] Removed from blacklist:', hostname);
         saveBlacklist();
     }
 }
 
 // Save blacklist to storage and update all tabs
-function saveBlacklist() {
-    browser.storage.local.set({ blacklistedSites: blacklistedSites }, function() {
-        if (browser.runtime.lastError) {
-            console.error('Error saving blacklist:', browser.runtime.lastError);
-            return;
-        }
-        console.log('Blacklist saved:', blacklistedSites);
-        updateAllTabs('updateBlacklist', null, blacklistedSites);
-        renderBlacklistUI();
-    });
+async function saveBlacklist() {
+    const success = await safeStorageSet({ blacklistedSites: blacklistedSites });
+    if (!success) {
+        console.error('[AutoPiP] Failed to save blacklist to storage');
+    }
+    updateAllTabs('updateBlacklist', null, blacklistedSites);
+    renderBlacklistUI();
 }
 
 // Render blacklist UI
