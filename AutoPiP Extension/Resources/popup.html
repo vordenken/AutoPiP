@@ -18,6 +18,26 @@
             <label for="debugLoggingCheckbox">Debug Logging</label>
             <input type="checkbox" class="checkbox" id="debugLoggingCheckbox">
         </div>
+        <div class="setting">
+            <label for="hostnameToggle">Use full hostname (including subdomain)</label>
+            <input type="checkbox" class="checkbox" id="hostnameToggle" checked>
+        </div>
+    </div>
+
+    <div class="site-control">
+        <div class="setting">
+            <label for="siteToggle">
+                <span id="currentHostname">Loading...</span>
+            </label>
+            <input type="checkbox" class="checkbox" id="siteToggle" checked>
+        </div>
+        <div class="blacklist-header" id="blacklistHeader">
+            <span class="chevron" id="chevron">►</span>
+            <span class="blacklist-title">Blacklisted Sites (<span id="blacklistCount">0</span>)</span>
+        </div>
+        <div class="blacklist-list" id="blacklistList">
+            <!-- Dynamically populated -->
+        </div>
     </div>
 
     <div class="settings-container">

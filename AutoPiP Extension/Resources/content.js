@@ -10,6 +10,7 @@ let windowSwitchEnabled = true;
 let scrollSwitchEnabled = true;
 let lastScrollPosition = window.scrollY;
 let isVideoVisible = true;
+let blacklistedSites = [];
 
 // Debug logging helper
 function debugLog(...args) {
@@ -19,14 +20,16 @@ function debugLog(...args) {
 }
 
 // Load initial status
-browser.storage.local.get(['tabSwitchEnabled', 'windowSwitchEnabled', 'scrollSwitchEnabled', 'debugLoggingEnabled'], function(result) {
+browser.storage.local.get(['tabSwitchEnabled', 'windowSwitchEnabled', 'scrollSwitchEnabled', 'debugLoggingEnabled', 'blacklistedSites'], function(result) {
     tabSwitchEnabled = result.tabSwitchEnabled === undefined ? true : result.tabSwitchEnabled;
     windowSwitchEnabled = result.windowSwitchEnabled === undefined ? true : result.windowSwitchEnabled;
     scrollSwitchEnabled = result.scrollSwitchEnabled === undefined ? true : result.scrollSwitchEnabled;
     DEBUG_LOGGING = result.debugLoggingEnabled === undefined ? false : result.debugLoggingEnabled;
+    blacklistedSites = result.blacklistedSites === undefined ? [] : result.blacklistedSites;
     debugLog('Initial status loaded - Tab Switch:', tabSwitchEnabled,
                 'Window Switch:', windowSwitchEnabled,
-                'Scroll Switch:', scrollSwitchEnabled);
+                'Scroll Switch:', scrollSwitchEnabled,
+                'Blacklisted Sites:', blacklistedSites);
 });
 
 // Message listener for toggle commands
@@ -80,7 +83,28 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({enabled: DEBUG_LOGGING});
         return true;
     }
+    else if (message.command === "updateBlacklist") {
+        blacklistedSites = message.sites;
+        debugLog('Blacklist updated:', blacklistedSites);
+        
+        // Disable PiP if current site is now blacklisted
+        if (isBlacklisted()) {
+            const video = getVideo();
+            if (video && isPiPActive(video)) {
+                disablePiP();
+            }
+        }
+        
+        sendResponse({success: true});
+        return true;
+    }
 });
+
+// Check if current site is blacklisted
+function isBlacklisted() {
+    const currentHostname = window.location.hostname;
+    return blacklistedSites.includes(currentHostname);
+}
 
 // Helper function for PiP status
 function isPiPActive(video) {
@@ -271,6 +295,12 @@ function getVideo() {
 }
 
 function enablePiP() {
+    // Check if current site is blacklisted
+    if (isBlacklisted()) {
+        debugLog('Site is blacklisted, skipping PiP activation');
+        return;
+    }
+    
     const video = getVideo();
     if (!video) return;
     

@@ -6,5 +6,41 @@
     "extension_description": {
         "message": "This is AutoPiP Extension. Automatically enables Picture-in-Picture mode when switching tabs.",
         "description": "Automatically enables Picture-in-Picture mode when switching tabs."
+    },
+    "current_site": {
+        "message": "Current Site",
+        "description": "Label for the current website"
+    },
+    "blacklisted_sites": {
+        "message": "Blacklisted Sites",
+        "description": "Title for the blacklist section"
+    },
+    "no_sites_blacklisted": {
+        "message": "No sites blacklisted",
+        "description": "Empty state message for blacklist"
+    },
+    "remove_from_blacklist": {
+        "message": "Remove from blacklist",
+        "description": "Tooltip for remove button"
+    },
+    "use_full_hostname": {
+        "message": "Use full hostname (including subdomain)",
+        "description": "Label for hostname mode toggle in advanced settings"
+    },
+    "debug_logging": {
+        "message": "Debug Logging",
+        "description": "Label for debug logging toggle"
+    },
+    "pip_on_tab_switch": {
+        "message": "PiP on Tab Switch",
+        "description": "Label for tab switch feature"
+    },
+    "pip_on_window_switch": {
+        "message": "PiP on Window Switch",
+        "description": "Label for window switch feature"
+    },
+    "pip_on_scroll": {
+        "message": "PiP on Scroll (YouTube)",
+        "description": "Label for scroll feature"
     }
 }
