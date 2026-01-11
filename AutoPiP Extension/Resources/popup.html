@@ -5,78 +5,98 @@
     <link rel="stylesheet" type="text/css" href="popup.css">
 </head>
 <body>
-    <div class="header">
-        <img src="images/icon-128.png" class="app-icon" id="appIcon" alt="AutoPiP">
-        <div class="header-info">
-            <div class="app-name">AutoPiP</div>
-            <div class="version" id="version"></div>
+    <!-- Main View -->
+    <div class="main-view" id="mainView">
+        <div class="header">
+            <img src="images/icon-128.png" class="app-icon" alt="AutoPiP">
+            <div class="header-info">
+                <div class="app-name">AutoPiP</div>
+                <div class="version" id="version"></div>
+            </div>
         </div>
-    </div>
 
-    <div class="advanced-settings" id="advancedSettings">
-        <div class="setting">
-            <label for="debugLoggingCheckbox">Debug Logging</label>
-            <input type="checkbox" class="checkbox" id="debugLoggingCheckbox">
+        <div class="site-control">
+            <div class="setting">
+                <label for="siteToggle">
+                    <span id="currentHostname">Loading...</span>
+                </label>
+                <input type="checkbox" class="checkbox" id="siteToggle" checked>
+            </div>
+            <div class="blacklist-header" id="blacklistHeader">
+                <span class="chevron" id="chevron">►</span>
+                <span class="blacklist-title">Blacklisted Sites (<span id="blacklistCount">0</span>)</span>
+            </div>
+            <div class="blacklist-list" id="blacklistList">
+                <!-- Dynamically populated -->
+            </div>
         </div>
-        <div class="setting">
-            <label for="hostnameToggle">Use full hostname (including subdomain)</label>
-            <input type="checkbox" class="checkbox" id="hostnameToggle" checked>
-        </div>
-    </div>
 
-    <div class="site-control">
-        <div class="setting">
-            <label for="siteToggle">
-                <span id="currentHostname">Loading...</span>
-            </label>
-            <input type="checkbox" class="checkbox" id="siteToggle" checked>
+        <div class="settings-container">
+            <div class="setting">
+                <label for="tabSwitchCheckbox">PiP on Tab Switch</label>
+                <input type="checkbox" class="checkbox" id="tabSwitchCheckbox" checked>
+            </div>
+            <div class="setting">
+                <label for="windowSwitchCheckbox">PiP on Window Switch</label>
+                <input type="checkbox" class="checkbox" id="windowSwitchCheckbox" checked>
+            </div>
+            <div class="setting">
+                <label for="scrollSwitchCheckbox">PiP on Scroll (YouTube)</label>
+                <input type="checkbox" class="checkbox" id="scrollSwitchCheckbox" checked>
+            </div>
         </div>
-        <div class="blacklist-header" id="blacklistHeader">
-            <span class="chevron" id="chevron">►</span>
-            <span class="blacklist-title">Blacklisted Sites (<span id="blacklistCount">0</span>)</span>
-        </div>
-        <div class="blacklist-list" id="blacklistList">
-            <!-- Dynamically populated -->
-        </div>
-    </div>
 
-    <div class="settings-container">
-        <div class="setting">
-            <label for="tabSwitchCheckbox">PiP on Tab Switch</label>
-            <input type="checkbox" class="checkbox" id="tabSwitchCheckbox" checked>
-        </div>
-        <div class="setting">
-            <label for="windowSwitchCheckbox">PiP on Window Switch</label>
-            <input type="checkbox" class="checkbox" id="windowSwitchCheckbox" checked>
-        </div>
-        <div class="setting">
-            <label for="scrollSwitchCheckbox">PiP on Scroll (YouTube)</label>
-            <input type="checkbox" class="checkbox" id="scrollSwitchCheckbox" checked>
-        </div>
-    </div>
+        <hr>
 
-    <hr>
-
-    <div class="links">
-        <div class="source-section">
-            <div class="section-label">View Source</div>
-            <a href="https://github.com/vordenken/AutoPiP" target="_blank" class="link-container">
+        <div class="links">
+            <a href="https://github.com/vordenken/AutoPiP" target="_blank" class="link-container" title="View Source">
                 <img src="images/icons8-github-64.png" class="link-icon github-icon" alt="GitHub">
+                <span class="link-label">Source</span>
             </a>
+            
+            <a href="https://ko-fi.com/vordenken" target="_blank" class="link-container" title="Support on Ko-fi">
+                <img src="images/icons8-kofi-64.png" class="link-icon" alt="Ko-fi">
+                <span class="link-label">Ko-fi</span>
+            </a>
+            
+            <a href="https://www.buymeacoffee.com/vordenken" target="_blank" class="link-container" title="Buy Me a Coffee">
+                <img src="images/icons8-bmc-64.png" class="link-icon" alt="Buy Me a Coffee">
+                <span class="link-label">Coffee</span>
+            </a>
+            
+            <button class="link-container" id="settingsButton" title="Settings">
+                <span class="settings-icon">⚙</span>
+                <span class="link-label">Settings</span>
+            </button>
         </div>
+    </div>
+
+    <!-- Settings View -->
+    <div class="settings-view hidden" id="settingsView">
+        <button class="back-button" id="backButton" title="Back">
+            <span class="back-arrow">←</span>
+        </button>
         
-        <div class="support-section">
-            <div class="section-label">Support the development</div>
-            <div class="support-links">
-                <a href="https://ko-fi.com/vordenken" target="_blank" class="link-container">
-                    <img src="images/icons8-kofi-64.png" class="link-icon" alt="Ko-fi">
-                </a>
-                <a href="https://www.buymeacoffee.com/vordenken" target="_blank" class="link-container">
-                    <img src="images/icons8-bmc-64.png" class="link-icon" alt="Buy Me a Coffee">
-                </a>
+        <div class="settings-header">
+            <img src="images/icon-128.png" class="app-icon" alt="AutoPiP">
+            <div class="header-info">
+                <div class="app-name">AutoPiP</div>
+                <div class="settings-subtitle">Settings</div>
+            </div>
+        </div>
+
+        <div class="settings-content">
+            <div class="setting">
+                <label for="debugLoggingCheckbox">Debug Logging</label>
+                <input type="checkbox" class="checkbox" id="debugLoggingCheckbox">
+            </div>
+            <div class="setting">
+                <label for="hostnameToggle">Use full hostname (including subdomain)</label>
+                <input type="checkbox" class="checkbox" id="hostnameToggle" checked>
             </div>
         </div>
     </div>
+
     <script src="popup.js"></script>
 </body>
 </html>

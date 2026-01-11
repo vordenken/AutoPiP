@@ -10,8 +10,12 @@ const blacklistHeader = document.getElementById('blacklistHeader');
 const chevron = document.getElementById('chevron');
 const blacklistList = document.getElementById('blacklistList');
 const blacklistCount = document.getElementById('blacklistCount');
-const appIcon = document.getElementById('appIcon');
-const advancedSettings = document.getElementById('advancedSettings');
+
+// View elements
+const mainView = document.getElementById('mainView');
+const settingsView = document.getElementById('settingsView');
+const settingsButton = document.getElementById('settingsButton');
+const backButton = document.getElementById('backButton');
 
 // State variables
 let blacklistedSites = [];
@@ -19,37 +23,32 @@ let blacklistUseFullHostname = true;
 let currentTabUrl = null;
 
 // Set version from manifest
-document.getElementById('version').textContent = 'v' + browser.runtime.getManifest().version;
+const version = 'v' + browser.runtime.getManifest().version;
+document.getElementById('version').textContent = version;
 
-// Easter egg: 5 clicks on logo to reveal advanced settings
-let clickCount = 0;
-let clickTimer = null;
+// View Navigation
+function showMainView() {
+    mainView.classList.remove('hidden');
+    settingsView.classList.add('hidden');
+}
 
-appIcon.addEventListener('click', function() {
-    clickCount++;
-    
-    // Reset counter after 2 seconds of no clicks
-    clearTimeout(clickTimer);
-    clickTimer = setTimeout(() => {
-        clickCount = 0;
-    }, 2000);
-    
-    // Show advanced settings after 5 clicks
-    if (clickCount >= 5) {
-        advancedSettings.classList.toggle('open');
-        clickCount = 0;
-    }
-});
+function showSettingsView() {
+    mainView.classList.add('hidden');
+    settingsView.classList.remove('hidden');
+}
+
+settingsButton.addEventListener('click', showSettingsView);
+backButton.addEventListener('click', showMainView);
 
 // Load saved status
 browser.storage.local.get(['tabSwitchEnabled', 'windowSwitchEnabled', 'scrollSwitchEnabled', 'debugLoggingEnabled', 'blacklistedSites', 'blacklistUseFullHostname'], function(result) {
-    const tabEnabled = result.tabSwitchEnabled === undefined ? true : result.tabSwitchEnabled;
-    const windowEnabled = result.windowSwitchEnabled === undefined ? true : result.windowSwitchEnabled;
-    const scrollEnabled = result.scrollSwitchEnabled === undefined ? true : result.scrollSwitchEnabled;
-    const debugEnabled = result.debugLoggingEnabled === undefined ? false : result.debugLoggingEnabled;
+    const tabEnabled = result.tabSwitchEnabled ?? true;
+    const windowEnabled = result.windowSwitchEnabled ?? true;
+    const scrollEnabled = result.scrollSwitchEnabled ?? true;
+    const debugEnabled = result.debugLoggingEnabled ?? false;
     
-    blacklistedSites = result.blacklistedSites === undefined ? [] : result.blacklistedSites;
-    blacklistUseFullHostname = result.blacklistUseFullHostname === undefined ? true : result.blacklistUseFullHostname;
+    blacklistedSites = result.blacklistedSites ?? [];
+    blacklistUseFullHostname = result.blacklistUseFullHostname ?? true;
 
     tabSwitchCheckbox.checked = tabEnabled;
     windowSwitchCheckbox.checked = windowEnabled;
@@ -142,17 +141,19 @@ blacklistHeader.addEventListener('click', function() {
     chevron.classList.toggle('rotated');
 });
 
-function updateAllTabs(command, enabled, sites) {
+function updateAllTabs(command, enabled = null, sites = undefined) {
     browser.tabs.query({}, function(tabs) {
         tabs.forEach(tab => {
-            const message = { command: command };
+            const message = { command };
             if (enabled !== null && enabled !== undefined) {
                 message.enabled = enabled;
             }
             if (sites !== undefined) {
                 message.sites = sites;
             }
-            browser.tabs.sendMessage(tab.id, message).catch(err => console.log('Error sending message to tab:', err));
+            browser.tabs.sendMessage(tab.id, message).catch(err => 
+                console.log('Error sending message to tab:', err)
+            );
         });
     });
 }
@@ -220,6 +221,10 @@ function removeFromBlacklist(hostname) {
 // Save blacklist to storage and update all tabs
 function saveBlacklist() {
     browser.storage.local.set({ blacklistedSites: blacklistedSites }, function() {
+        if (browser.runtime.lastError) {
+            console.error('Error saving blacklist:', browser.runtime.lastError);
+            return;
+        }
         console.log('Blacklist saved:', blacklistedSites);
         updateAllTabs('updateBlacklist', null, blacklistedSites);
         renderBlacklistUI();
@@ -247,6 +252,7 @@ function renderBlacklistUI() {
             const siteSpan = document.createElement('span');
             siteSpan.className = 'site-name';
             siteSpan.textContent = site;
+            siteSpan.title = site;
             
             const removeBtn = document.createElement('button');
             removeBtn.className = 'remove-btn';
