@@ -184,24 +184,24 @@ blacklistHeader.addEventListener('click', function() {
     blacklistHeader.setAttribute('aria-expanded', isExpanded);
 });
 
-function updateAllTabs(command, enabled = null, sites = undefined) {
-    browser.tabs.query({}, function(tabs) {
-        // Batch all tab updates with Promise.allSettled for better performance
-        const promises = tabs.map(tab => {
-            const message = { command };
-            if (enabled !== null && enabled !== undefined) {
-                message.enabled = enabled;
-            }
-            if (sites !== undefined) {
-                message.sites = sites;
-            }
-            return browser.tabs.sendMessage(tab.id, message)
-                .catch(err => console.warn('[AutoPiP] Failed to send message to tab:', err.message || err));
-        });
-        
-        // Fire and forget (no need to wait)
-        Promise.allSettled(promises);
+async function updateAllTabs(command, enabled = null, sites = undefined) {
+    const tabs = await browser.tabs.query({});
+    
+    // Batch all tab updates with Promise.allSettled for better performance
+    const promises = tabs.map(tab => {
+        const message = { command };
+        if (enabled !== null && enabled !== undefined) {
+            message.enabled = enabled;
+        }
+        if (sites !== undefined) {
+            message.sites = sites;
+        }
+        return browser.tabs.sendMessage(tab.id, message)
+            .catch(err => console.warn('[AutoPiP] Failed to send message to tab:', err.message || err));
     });
+    
+    // Fire and forget (no need to wait)
+    await Promise.allSettled(promises);
 }
 
 // Extract hostname from URL based on settings

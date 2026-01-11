@@ -2,6 +2,10 @@
 
 // Configuration constants
 const FOCUS_CHECK_DELAY_MS = 100; // Delay to distinguish internal focus changes from actual window blur
+const CACHE_DURATION_MS = 1000; // Video selector cache duration in milliseconds
+const INTERSECTION_THRESHOLD = 0.1; // IntersectionObserver threshold (10% visibility)
+const DOM_READY_DELAY_MS = 500; // Delay before initializing IntersectionObserver
+
 let DEBUG_LOGGING = false; // Can be toggled via popup settings
 
 // State variables
@@ -40,8 +44,6 @@ async function safeStorageGet(keys, defaults = {}) {
         return defaults;
     }
 }
-
-// === INITIALIZATION ===
 
 // === INITIALIZATION ===
 
@@ -305,7 +307,7 @@ function setupVideoObserver() {
                 }
             });
         }, {
-            threshold: 0.1 // Trigger when 10% of video is visible/hidden
+            threshold: INTERSECTION_THRESHOLD
         });
     }
 
@@ -313,19 +315,6 @@ function setupVideoObserver() {
     videoObserver.observe(video);
     observedVideo = video;
     isVideoVisible = isElementInViewport(video);
-}
-
-// Debounce helper function
-function debounce(func, wait) {
-    let timeout;
-    return function executedFunction(...args) {
-        const later = () => {
-            clearTimeout(timeout);
-            func(...args);
-        };
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-    };
 }
 
 // Helper function to check if current page is YouTube
@@ -336,42 +325,16 @@ function isYouTubePage() {
 }
 
 // Watch for DOM changes and invalidate video cache
-new MutationObserver((mutations) => {
-    // Invalidate cache when video elements might have changed
+new MutationObserver(() => {
     invalidateVideoCache();
-    checkForVideo();
 }).observe(document, {
     subtree: true,
     childList: true
 });
 
-function dispatchMessage(messageName, parameters) {
-    browser.runtime.sendMessage({
-        name: messageName,
-        params: parameters
-    });
-}
-
-let previousResult = null;
-
 // Video selector caching with invalidation
 let cachedVideo = null;
 let cacheTimestamp = 0;
-const CACHE_DURATION_MS = 1000; // Cache for 1 second
-
-function checkForVideo() {
-    if (getVideo() != null) {
-        if (previousResult === null || previousResult === false) {
-            dispatchMessage("videoCheck", {found: true});
-        }
-        previousResult = true;
-    } else if (window == window.top) {
-        if (previousResult === null || previousResult === true) {
-            dispatchMessage("videoCheck", {found: false});
-        }
-        previousResult = false;
-    }
-}
 
 function getVideo() {
     // Return cached video if still valid and element still in DOM
@@ -425,10 +388,10 @@ function invalidateVideoCache() {
 // Wait for DOM to be ready
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
-        setTimeout(setupVideoObserver, 500);
+        setTimeout(setupVideoObserver, DOM_READY_DELAY_MS);
     });
 } else {
-    setTimeout(setupVideoObserver, 500);
+    setTimeout(setupVideoObserver, DOM_READY_DELAY_MS);
 }
 
 // === PIP CONTROL FUNCTIONS ===

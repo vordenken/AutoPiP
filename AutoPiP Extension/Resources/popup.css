@@ -179,38 +179,6 @@ body {
     margin-bottom: 0;
 }
 
-.settings-footer {
-    margin-top: var(--spacing-lg);
-    padding-top: var(--spacing-md);
-    border-top: 1px solid var(--border-color);
-}
-
-.footer-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: var(--spacing-md);
-}
-
-.footer-links {
-    display: flex;
-    gap: var(--spacing-sm);
-    align-items: center;
-}
-
-.version-info {
-    display: flex;
-    justify-content: flex-start;
-    align-items: center;
-    gap: var(--spacing-sm);
-    font-size: 12px;
-    color: var(--secondary-text-color);
-}
-
-.version-label {
-    font-weight: 500;
-}
-
 .site-control {
     background-color: var(--card-background);
     border-radius: var(--radius-md);
