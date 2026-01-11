@@ -12,8 +12,6 @@ let DEBUG_LOGGING = false; // Can be toggled via popup settings
 let tabSwitchEnabled = true;
 let windowSwitchEnabled = true;
 let scrollSwitchEnabled = true;
-let lastScrollPosition = window.scrollY;
-let isVideoVisible = true;
 let blacklistedSites = [];
 
 // Debug logging helper
@@ -43,6 +41,53 @@ async function safeStorageGet(keys, defaults = {}) {
         console.error('[AutoPiP] Storage get exception:', error);
         return defaults;
     }
+}
+
+// === HELPER FUNCTIONS ===
+
+/**
+ * Check if video is in playable state
+ * @param {HTMLVideoElement} video - Video element to check
+ * @returns {boolean} - True if video can be played
+ */
+function isVideoPlayable(video) {
+    return !video.paused && video.currentTime > 0 && !video.ended;
+}
+
+/**
+ * Set webkit presentation mode if supported
+ * @param {HTMLVideoElement} video - Video element
+ * @param {string} mode - Presentation mode ('picture-in-picture' or 'inline')
+ * @returns {boolean} - True if mode was set successfully
+ */
+function setWebkitPresentationMode(video, mode) {
+    if (video.webkitSupportsPresentationMode && 
+        typeof video.webkitSetPresentationMode === 'function') {
+        video.webkitSetPresentationMode(mode);
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Disable PiP if currently active
+ */
+function disablePiPIfActive() {
+    const video = getVideo();
+    if (video && isPiPActive(video)) {
+        disablePiP();
+    }
+}
+
+/**
+ * Check if video cache is still valid
+ * @param {number} now - Current timestamp
+ * @returns {boolean} - True if cache is valid
+ */
+function isCacheValid(now) {
+    return cachedVideo && 
+           now - cacheTimestamp < CACHE_DURATION_MS && 
+           document.contains(cachedVideo);
 }
 
 // === INITIALIZATION ===
@@ -82,10 +127,7 @@ const messageHandlers = {
         debugLog('Tab Switch toggled to:', tabSwitchEnabled);
         
         if (!tabSwitchEnabled) {
-            const video = getVideo();
-            if (video && isPiPActive(video)) {
-                disablePiP();
-            }
+            disablePiPIfActive();
         }
         
         return { enabled: tabSwitchEnabled };
@@ -96,10 +138,7 @@ const messageHandlers = {
         debugLog('Window Switch toggled to:', windowSwitchEnabled);
         
         if (!windowSwitchEnabled) {
-            const video = getVideo();
-            if (video && isPiPActive(video)) {
-                disablePiP();
-            }
+            disablePiPIfActive();
         }
         
         return { enabled: windowSwitchEnabled };
@@ -113,10 +152,7 @@ const messageHandlers = {
         setupVideoObserver();
         
         if (!scrollSwitchEnabled) {
-            const video = getVideo();
-            if (video && isPiPActive(video)) {
-                disablePiP();
-            }
+            disablePiPIfActive();
         }
         
         return { enabled: scrollSwitchEnabled };
@@ -132,15 +168,10 @@ const messageHandlers = {
     updateBlacklist: (message) => {
         blacklistedSites = message.sites || [];
         debugLog('Blacklist updated to:', blacklistedSites);
-        debugLog('Current hostname:', window.location.hostname, 'is blacklisted:', isBlacklisted());
         
         // Disable PiP if current site is now blacklisted
         if (isBlacklisted()) {
-            const video = getVideo();
-            if (video && isPiPActive(video)) {
-                debugLog('Site is now blacklisted, disabling PiP');
-                disablePiP();
-            }
+            disablePiPIfActive();
         }
         
         return { success: true };
@@ -170,7 +201,7 @@ function isBlacklisted() {
 // Helper function for PiP status
 function isPiPActive(video) {
     return document.pictureInPictureElement ||
-        (video.webkitPresentationMode && video.webkitPresentationMode === "picture-in-picture");
+        (video.webkitPresentationMode && video.webkitPresentationMode === 'picture-in-picture');
 }
 
 // Helper function to check if element is in viewport
@@ -203,7 +234,7 @@ document.addEventListener("visibilitychange", (event) => {
     debugLog('Tab visibility changed, hidden:', document.hidden);
 
     if (document.hidden) {
-        if (!video.paused && video.currentTime > 0 && !video.ended) {
+        if (isVideoPlayable(video)) {
             debugLog('Enabling PiP on tab switch');
             enablePiP();
         }
@@ -238,7 +269,7 @@ window.addEventListener("blur", (event) => {
         const video = getVideo();
         if (!video) return;
 
-        if (!video.paused && video.currentTime > 0 && !video.ended) {
+        if (isVideoPlayable(video)) {
             debugLog('Enabling PiP on window blur');
             enablePiP();
         }
@@ -287,6 +318,9 @@ function setupVideoObserver() {
         videoObserver.unobserve(observedVideo);
     }
 
+    // Track visibility state for this video
+    let wasVisible = isElementInViewport(video);
+
     // Create observer if needed
     if (!videoObserver) {
         videoObserver = new IntersectionObserver((entries) => {
@@ -296,14 +330,14 @@ function setupVideoObserver() {
                 const video = entry.target;
                 const isVisible = entry.isIntersecting;
 
-                if (!isVisible && isVideoVisible && !video.paused) {
+                if (!isVisible && wasVisible && !video.paused) {
                     debugLog('Video scrolled out of view, enabling PiP');
                     enablePiP();
-                    isVideoVisible = false;
-                } else if (isVisible && !isVideoVisible) {
+                    wasVisible = false;
+                } else if (isVisible && !wasVisible) {
                     debugLog('Video scrolled into view, disabling PiP');
                     disablePiP();
-                    isVideoVisible = true;
+                    wasVisible = true;
                 }
             });
         }, {
@@ -314,14 +348,12 @@ function setupVideoObserver() {
     // Observe new video
     videoObserver.observe(video);
     observedVideo = video;
-    isVideoVisible = isElementInViewport(video);
 }
 
 // Helper function to check if current page is YouTube
 function isYouTubePage() {
-    const allowedHosts = ['youtube.com', 'www.youtube.com'];
-        const hostname = window.location.hostname;
-        return allowedHosts.includes(hostname);
+    const hostname = window.location.hostname;
+    return ['youtube.com', 'www.youtube.com'].includes(hostname);
 }
 
 // Watch for DOM changes and invalidate video cache
@@ -336,46 +368,33 @@ new MutationObserver(() => {
 let cachedVideo = null;
 let cacheTimestamp = 0;
 
+// Video selectors in priority order
+const VIDEO_SELECTORS = [
+    { name: 'YouTube', selector: '.html5-main-video' },
+    { name: 'Disney+', selector: '#hivePlayer' },
+    { name: 'Twitch', selector: '.video-player__container video, video[data-a-player-state]' },
+    { name: 'Generic', selector: 'video' }
+];
+
 function getVideo() {
-    // Return cached video if still valid and element still in DOM
     const now = Date.now();
-    if (cachedVideo && 
-        now - cacheTimestamp < CACHE_DURATION_MS && 
-        document.contains(cachedVideo)) {
+    
+    // Return cached video if still valid
+    if (isCacheValid(now)) {
         return cachedVideo;
     }
     
-    // Prioritize YouTube player
-    const youtubeVideo = document.querySelector('.html5-main-video');
-    if (youtubeVideo) {
-        cachedVideo = youtubeVideo;
-        cacheTimestamp = now;
-        return youtubeVideo;
+    // Try each selector in priority order
+    for (const { selector } of VIDEO_SELECTORS) {
+        const video = document.querySelector(selector);
+        if (video) {
+            cachedVideo = video;
+            cacheTimestamp = now;
+            return video;
+        }
     }
     
-    // Disney+ Videoplayer
-    const disneyPlusVideo = document.querySelector('#hivePlayer');
-    if (disneyPlusVideo) {
-        cachedVideo = disneyPlusVideo;
-        cacheTimestamp = now;
-        return disneyPlusVideo;
-    }
-
-    // Twitch: Search for typical Twitch video containers
-    const twitchVideo = document.querySelector('.video-player__container video, video[data-a-player-state]');
-    if (twitchVideo) {
-        cachedVideo = twitchVideo;
-        cacheTimestamp = now;
-        return twitchVideo;
-    }
-
-    // Fallback: Search for generic video-Element
-    const genericVideo = document.querySelector('video');
-    if (genericVideo) {
-        cachedVideo = genericVideo;
-        cacheTimestamp = now;
-    }
-    return genericVideo;
+    return null;
 }
 
 // Invalidate video cache when DOM changes significantly
@@ -395,6 +414,7 @@ if (document.readyState === 'loading') {
 }
 
 // === PIP CONTROL FUNCTIONS ===
+
 function enablePiP() {
     // Check if current site is blacklisted
     if (isBlacklisted()) {
@@ -408,25 +428,24 @@ function enablePiP() {
         return;
     }
     
-    if (!video.paused && video.currentTime > 0 && !video.ended) {
-        try {
-            if (video.webkitSupportsPresentationMode && 
-                typeof video.webkitSetPresentationMode === 'function') {
-                video.webkitSetPresentationMode('picture-in-picture');
-                debugLog('PiP enabled successfully');
-            } else {
-                debugLog('PiP not supported on this video element');
-            }
-        } catch (error) {
-            console.error('[AutoPiP] PiP enable exception:', error.message || error);
-            debugLog('PiP activation exception:', error.name);
-        }
-    } else {
+    if (!isVideoPlayable(video)) {
         debugLog('Video not in playable state for PiP:', {
             paused: video.paused,
             currentTime: video.currentTime,
             ended: video.ended
         });
+        return;
+    }
+    
+    try {
+        if (setWebkitPresentationMode(video, 'picture-in-picture')) {
+            debugLog('PiP enabled successfully');
+        } else {
+            debugLog('PiP not supported on this video element');
+        }
+    } catch (error) {
+        console.error('[AutoPiP] PiP enable exception:', error.message || error);
+        debugLog('PiP activation exception:', error.name);
     }
 }
 
@@ -436,14 +455,17 @@ function disablePiP() {
         debugLog('No video element found for PiP disable');
         return;
     }
+    
+    if (!isPiPActive(video)) {
+        debugLog('No active PiP to disable');
+        return;
+    }
 
     try {
-        if (video.webkitSupportsPresentationMode && 
-            typeof video.webkitSetPresentationMode === 'function') {
-            video.webkitSetPresentationMode('inline');
+        if (setWebkitPresentationMode(video, 'inline')) {
             debugLog('PiP disabled successfully');
         } else {
-            debugLog('No active PiP to disable');
+            debugLog('PiP disable failed - webkit API not available');
         }
     } catch (error) {
         console.error('[AutoPiP] PiP disable exception:', error.message || error);
