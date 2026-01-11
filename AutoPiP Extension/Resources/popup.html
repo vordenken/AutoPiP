@@ -20,12 +20,12 @@
                 <label for="siteToggle">
                     <span id="currentHostname">Loading...</span>
                 </label>
-                <input type="checkbox" class="checkbox" id="siteToggle" checked>
+                <input type="checkbox" class="checkbox" id="siteToggle" checked aria-label="Enable PiP for current site">
             </div>
-            <div class="blacklist-header" id="blacklistHeader">
-                <span class="chevron" id="chevron">►</span>
+            <button class="blacklist-header" id="blacklistHeader" aria-expanded="false" aria-controls="blacklistList">
+                <span class="chevron" id="chevron" aria-hidden="true">►</span>
                 <span class="blacklist-title">Blacklisted Sites (<span id="blacklistCount">0</span>)</span>
-            </div>
+            </button>
             <div class="blacklist-list" id="blacklistList">
                 <!-- Dynamically populated -->
             </div>
@@ -34,15 +34,15 @@
         <div class="settings-container">
             <div class="setting">
                 <label for="tabSwitchCheckbox">PiP on Tab Switch</label>
-                <input type="checkbox" class="checkbox" id="tabSwitchCheckbox" checked>
+                <input type="checkbox" class="checkbox" id="tabSwitchCheckbox" checked aria-label="Enable Picture-in-Picture when switching tabs">
             </div>
             <div class="setting">
                 <label for="windowSwitchCheckbox">PiP on Window Switch</label>
-                <input type="checkbox" class="checkbox" id="windowSwitchCheckbox" checked>
+                <input type="checkbox" class="checkbox" id="windowSwitchCheckbox" checked aria-label="Enable Picture-in-Picture when switching windows">
             </div>
             <div class="setting">
                 <label for="scrollSwitchCheckbox">PiP on Scroll (YouTube)</label>
-                <input type="checkbox" class="checkbox" id="scrollSwitchCheckbox" checked>
+                <input type="checkbox" class="checkbox" id="scrollSwitchCheckbox" checked aria-label="Enable Picture-in-Picture when scrolling on YouTube">
             </div>
         </div>
 
@@ -72,27 +72,27 @@
     </div>
 
     <!-- Settings View -->
-    <div class="settings-view hidden" id="settingsView">
-        <button class="back-button" id="backButton" title="Back">
-            <span class="back-arrow">←</span>
+    <div class="settings-view hidden" id="settingsView" role="dialog" aria-labelledby="settingsTitle">
+        <button class="back-button" id="backButton" title="Back" aria-label="Back to main view">
+            <span class="back-arrow" aria-hidden="true">←</span>
         </button>
         
         <div class="settings-header">
             <img src="images/icon-128.png" class="app-icon" alt="AutoPiP">
             <div class="header-info">
                 <div class="app-name">AutoPiP</div>
-                <div class="settings-subtitle">Settings</div>
+                <div class="settings-subtitle" id="settingsTitle">Settings</div>
             </div>
         </div>
 
         <div class="settings-content">
             <div class="setting">
                 <label for="debugLoggingCheckbox">Debug Logging</label>
-                <input type="checkbox" class="checkbox" id="debugLoggingCheckbox">
+                <input type="checkbox" class="checkbox" id="debugLoggingCheckbox" aria-label="Enable debug logging in console">
             </div>
             <div class="setting">
                 <label for="hostnameToggle">Use full hostname (including subdomain)</label>
-                <input type="checkbox" class="checkbox" id="hostnameToggle" checked>
+                <input type="checkbox" class="checkbox" id="hostnameToggle" checked aria-label="Use full hostname including subdomain for blacklist">
             </div>
         </div>
     </div>

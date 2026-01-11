@@ -107,6 +107,9 @@ const messageHandlers = {
         scrollSwitchEnabled = message.enabled;
         debugLog('Scroll Switch toggled to:', scrollSwitchEnabled);
         
+        // Re-setup observer when scroll switch is toggled
+        setupVideoObserver();
+        
         if (!scrollSwitchEnabled) {
             const video = getVideo();
             if (video && isPiPActive(video)) {
@@ -261,28 +264,56 @@ window.addEventListener("focus", (event) => {
     }
 });
 
-// Scroll event listener
-window.addEventListener('scroll', debounce(() => {
-    if (!scrollSwitchEnabled) {
-        debugLog('Scroll switch is disabled, ignoring scroll');
+// IntersectionObserver for scroll-based PiP (better performance than scroll listener)
+let videoObserver = null;
+let observedVideo = null;
+
+function setupVideoObserver() {
+    if (!scrollSwitchEnabled || !isYouTubePage()) {
+        if (videoObserver && observedVideo) {
+            videoObserver.unobserve(observedVideo);
+            observedVideo = null;
+        }
         return;
     }
 
     const video = getVideo();
-    if (!video || !isYouTubePage()) return;
-    
-    const videoVisible = isElementInViewport(video);
-    
-    if (!videoVisible && isVideoVisible && !video.paused) {
-        debugLog('Video scrolled out of view, enabling PiP');
-        enablePiP();
-        isVideoVisible = false;
-    } else if (videoVisible && !isVideoVisible) {
-        debugLog('Video scrolled into view, disabling PiP');
-        disablePiP();
-        isVideoVisible = true;
+    if (!video || video === observedVideo) return;
+
+    // Clean up previous observer
+    if (videoObserver && observedVideo) {
+        videoObserver.unobserve(observedVideo);
     }
-}, 150));
+
+    // Create observer if needed
+    if (!videoObserver) {
+        videoObserver = new IntersectionObserver((entries) => {
+            if (!scrollSwitchEnabled) return;
+
+            entries.forEach(entry => {
+                const video = entry.target;
+                const isVisible = entry.isIntersecting;
+
+                if (!isVisible && isVideoVisible && !video.paused) {
+                    debugLog('Video scrolled out of view, enabling PiP');
+                    enablePiP();
+                    isVideoVisible = false;
+                } else if (isVisible && !isVideoVisible) {
+                    debugLog('Video scrolled into view, disabling PiP');
+                    disablePiP();
+                    isVideoVisible = true;
+                }
+            });
+        }, {
+            threshold: 0.1 // Trigger when 10% of video is visible/hidden
+        });
+    }
+
+    // Observe new video
+    videoObserver.observe(video);
+    observedVideo = video;
+    isVideoVisible = isElementInViewport(video);
+}
 
 // Debounce helper function
 function debounce(func, wait) {
@@ -304,8 +335,12 @@ function isYouTubePage() {
         return allowedHosts.includes(hostname);
 }
 
-// Watch for DOM changes
-new MutationObserver(checkForVideo).observe(document, {
+// Watch for DOM changes and invalidate video cache
+new MutationObserver((mutations) => {
+    // Invalidate cache when video elements might have changed
+    invalidateVideoCache();
+    checkForVideo();
+}).observe(document, {
     subtree: true,
     childList: true
 });
@@ -317,7 +352,12 @@ function dispatchMessage(messageName, parameters) {
     });
 }
 
-var previousResult = null;
+let previousResult = null;
+
+// Video selector caching with invalidation
+let cachedVideo = null;
+let cacheTimestamp = 0;
+const CACHE_DURATION_MS = 1000; // Cache for 1 second
 
 function checkForVideo() {
     if (getVideo() != null) {
@@ -334,20 +374,61 @@ function checkForVideo() {
 }
 
 function getVideo() {
+    // Return cached video if still valid and element still in DOM
+    const now = Date.now();
+    if (cachedVideo && 
+        now - cacheTimestamp < CACHE_DURATION_MS && 
+        document.contains(cachedVideo)) {
+        return cachedVideo;
+    }
+    
     // Prioritize YouTube player
     const youtubeVideo = document.querySelector('.html5-main-video');
-    if (youtubeVideo) return youtubeVideo;
+    if (youtubeVideo) {
+        cachedVideo = youtubeVideo;
+        cacheTimestamp = now;
+        return youtubeVideo;
+    }
     
     // Disney+ Videoplayer
     const disneyPlusVideo = document.querySelector('#hivePlayer');
-    if (disneyPlusVideo) return disneyPlusVideo;
+    if (disneyPlusVideo) {
+        cachedVideo = disneyPlusVideo;
+        cacheTimestamp = now;
+        return disneyPlusVideo;
+    }
 
     // Twitch: Search for typical Twitch video containers
     const twitchVideo = document.querySelector('.video-player__container video, video[data-a-player-state]');
-    if (twitchVideo) return twitchVideo;
+    if (twitchVideo) {
+        cachedVideo = twitchVideo;
+        cacheTimestamp = now;
+        return twitchVideo;
+    }
 
     // Fallback: Search for generic video-Element
-    return document.querySelector('video');
+    const genericVideo = document.querySelector('video');
+    if (genericVideo) {
+        cachedVideo = genericVideo;
+        cacheTimestamp = now;
+    }
+    return genericVideo;
+}
+
+// Invalidate video cache when DOM changes significantly
+function invalidateVideoCache() {
+    cachedVideo = null;
+    cacheTimestamp = 0;
+}
+
+// Initialize IntersectionObserver after getVideo is defined
+// Wait for DOM to be ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(setupVideoObserver, 500);
+    });
+} else {
+    setTimeout(setupVideoObserver, 500);
 }
 
 // === PIP CONTROL FUNCTIONS ===

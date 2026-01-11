@@ -177,13 +177,17 @@ siteToggle.addEventListener('change', function() {
 
 // Blacklist Header (Chevron) Click Event Listener
 blacklistHeader.addEventListener('click', function() {
-    blacklistList.classList.toggle('expanded');
+    const isExpanded = blacklistList.classList.toggle('expanded');
     chevron.classList.toggle('rotated');
+    
+    // Update ARIA attribute
+    blacklistHeader.setAttribute('aria-expanded', isExpanded);
 });
 
 function updateAllTabs(command, enabled = null, sites = undefined) {
     browser.tabs.query({}, function(tabs) {
-        tabs.forEach(tab => {
+        // Batch all tab updates with Promise.allSettled for better performance
+        const promises = tabs.map(tab => {
             const message = { command };
             if (enabled !== null && enabled !== undefined) {
                 message.enabled = enabled;
@@ -191,9 +195,12 @@ function updateAllTabs(command, enabled = null, sites = undefined) {
             if (sites !== undefined) {
                 message.sites = sites;
             }
-            browser.tabs.sendMessage(tab.id, message)
+            return browser.tabs.sendMessage(tab.id, message)
                 .catch(err => console.warn('[AutoPiP] Failed to send message to tab:', err.message || err));
         });
+        
+        // Fire and forget (no need to wait)
+        Promise.allSettled(promises);
     });
 }
 
@@ -298,7 +305,7 @@ async function saveBlacklist() {
     renderBlacklistUI();
 }
 
-// Render blacklist UI
+// Render blacklist UI with event delegation
 function renderBlacklistUI() {
     // Update count
     blacklistCount.textContent = blacklistedSites.length;
@@ -325,18 +332,7 @@ function renderBlacklistUI() {
             removeBtn.className = 'remove-btn';
             removeBtn.textContent = '✕';
             removeBtn.title = 'Remove from blacklist';
-            removeBtn.addEventListener('click', function(e) {
-                e.stopPropagation();
-                removeFromBlacklist(site);
-                
-                // Update site toggle if this was the current site
-                if (currentTabUrl) {
-                    const currentHostname = extractHostname(currentTabUrl, blacklistUseFullHostname);
-                    if (currentHostname === site) {
-                        updateSiteToggle(currentHostname);
-                    }
-                }
-            });
+            removeBtn.dataset.site = site; // Store site in data attribute for delegation
             
             item.appendChild(siteSpan);
             item.appendChild(removeBtn);
@@ -344,3 +340,21 @@ function renderBlacklistUI() {
         });
     }
 }
+
+// Event delegation for blacklist remove buttons (better performance)
+blacklistList.addEventListener('click', function(e) {
+    if (e.target.classList.contains('remove-btn')) {
+        e.stopPropagation();
+        const site = e.target.dataset.site;
+        
+        removeFromBlacklist(site);
+        
+        // Update site toggle if this was the current site
+        if (currentTabUrl) {
+            const currentHostname = extractHostname(currentTabUrl, blacklistUseFullHostname);
+            if (currentHostname === site) {
+                updateSiteToggle(currentHostname);
+            }
+        }
+    }
+});

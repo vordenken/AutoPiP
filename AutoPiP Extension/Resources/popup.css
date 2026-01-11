@@ -3,11 +3,13 @@
     --text-color: #000000;
     --border-color: #e0e0e0;
     --hover-color: #f0f0f0;
-    --secondary-text-color: #666666;
+    --secondary-text-color: #5a5a5a;
     --accent-color: #007aff;
     --danger-color: #ff3b30;
     --success-color: #34c759;
     --card-background: #f9f9f9;
+    --focus-outline: 2px solid #007aff;
+    --focus-outline-offset: 2px;
     
     /* Spacing System */
     --spacing-xs: 6px;
@@ -29,11 +31,12 @@
         --text-color: #ffffff;
         --border-color: #3a3a3c;
         --hover-color: #2c2c2e;
-        --secondary-text-color: #999999;
+        --secondary-text-color: #a8a8a8; /* Improved contrast from #999 */
         --accent-color: #0a84ff;
         --danger-color: #ff453a;
         --success-color: #32d74b;
         --card-background: #1c1c1e;
+        --focus-outline: 2px solid #0a84ff;
     }
     .github-icon {
         filter: invert(100%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(100%) contrast(100%);
@@ -133,6 +136,11 @@ body {
 
 .settings-view .back-button:hover {
     background-color: var(--hover-color);
+}
+
+.settings-view .back-button:focus-visible {
+    outline: var(--focus-outline);
+    outline-offset: var(--focus-outline-offset);
 }
 
 .settings-view .back-arrow {
@@ -238,10 +246,31 @@ body {
     transition: background-color 0.2s;
     border-radius: var(--radius-sm);
     margin: var(--spacing-xs) 0;
+    background: transparent;
+    border: none;
+    color: inherit;
+    font: inherit;
+    width: 100%;
+    text-align: left;
 }
 
 .blacklist-header:hover {
     background-color: var(--hover-color);
+}
+
+.blacklist-header:focus {
+    outline: var(--focus-outline);
+    outline-offset: var(--focus-outline-offset);
+}
+
+.blacklist-header:focus-visible {
+    outline: var(--focus-outline);
+    outline-offset: var(--focus-outline-offset);
+}
+
+.blacklist-header:focus-visible {
+    outline: var(--focus-outline);
+    outline-offset: var(--focus-outline-offset);
 }
 
 .chevron {
@@ -342,6 +371,11 @@ body {
 .remove-btn:hover {
     background-color: rgba(255, 59, 48, 0.15);
     transform: scale(1.1);
+}
+
+.remove-btn:focus-visible {
+    outline: var(--focus-outline);
+    outline-offset: 1px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -445,6 +479,16 @@ hr {
     opacity: 1;
 }
 
+.link-container:focus {
+    outline: var(--focus-outline);
+    outline-offset: var(--focus-outline-offset);
+}
+
+.link-container:focus-visible {
+    outline: var(--focus-outline);
+    outline-offset: var(--focus-outline-offset);
+}
+
 @media (prefers-color-scheme: dark) {
     .link-container:hover {
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
@@ -488,6 +532,16 @@ hr {
 
 .checkbox:checked {
     background-color: var(--success-color);
+}
+
+.checkbox:focus {
+    outline: var(--focus-outline);
+    outline-offset: var(--focus-outline-offset);
+}
+
+.checkbox:focus-visible {
+    outline: var(--focus-outline);
+    outline-offset: var(--focus-outline-offset);
 }
 
 .checkbox::before {
