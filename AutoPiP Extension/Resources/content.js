@@ -9,6 +9,7 @@ const DOM_READY_DELAY_MS = 500; // Delay before initializing IntersectionObserve
 let DEBUG_LOGGING = false; // Can be toggled via popup settings
 
 // State variables
+let autopipEnabled = true;
 let tabSwitchEnabled = true;
 let windowSwitchEnabled = true;
 let scrollSwitchEnabled = true;
@@ -97,6 +98,7 @@ function isCacheValid(now) {
 // Load initial status with error handling
 (async function initializeContentScript() {
     const defaults = {
+        autopipEnabled: true,
         tabSwitchEnabled: true,
         windowSwitchEnabled: true,
         scrollSwitchEnabled: true,
@@ -107,11 +109,12 @@ function isCacheValid(now) {
     };
     
     const result = await safeStorageGet(
-        ['tabSwitchEnabled', 'windowSwitchEnabled', 'scrollSwitchEnabled', 'debugLoggingEnabled',
-         'blacklistedSites', 'whitelistedSites', 'listMode'],
+        ['autopipEnabled', 'tabSwitchEnabled', 'windowSwitchEnabled', 'scrollSwitchEnabled',
+         'debugLoggingEnabled', 'blacklistedSites', 'whitelistedSites', 'listMode'],
         defaults
     );
     
+    autopipEnabled = result.autopipEnabled ?? true;
     tabSwitchEnabled = result.tabSwitchEnabled ?? true;
     windowSwitchEnabled = result.windowSwitchEnabled ?? true;
     scrollSwitchEnabled = result.scrollSwitchEnabled ?? true;
@@ -131,6 +134,17 @@ function isCacheValid(now) {
 // === MESSAGE HANDLERS ===
 // Message handler map
 const messageHandlers = {
+    toggleAutoPiP: (message) => {
+        autopipEnabled = message.enabled;
+        debugLog('AutoPiP toggled to:', autopipEnabled);
+
+        if (!autopipEnabled) {
+            disablePiPIfActive();
+        }
+
+        return { enabled: autopipEnabled };
+    },
+
     toggleTabSwitch: (message) => {
         tabSwitchEnabled = message.enabled;
         debugLog('Tab Switch toggled to:', tabSwitchEnabled);
@@ -462,6 +476,12 @@ if (document.readyState === 'loading') {
 // === PIP CONTROL FUNCTIONS ===
 
 function enablePiP() {
+    // Check global on/off switch first
+    if (!autopipEnabled) {
+        debugLog('AutoPiP is disabled globally, skipping PiP activation');
+        return;
+    }
+
     // Check if current site is blocked by active list
     if (isSiteBlocked()) {
         debugLog('Site is blocked, skipping PiP activation');

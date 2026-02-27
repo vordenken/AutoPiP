@@ -1,4 +1,5 @@
 // popup.js
+const autopipEnabledCheckbox = document.getElementById('autopipEnabledCheckbox');
 const tabSwitchCheckbox = document.getElementById('tabSwitchCheckbox');
 const windowSwitchCheckbox = document.getElementById('windowSwitchCheckbox');
 const scrollSwitchCheckbox = document.getElementById('scrollSwitchCheckbox');
@@ -30,6 +31,7 @@ const settingsButton = document.getElementById('settingsButton');
 const backButton = document.getElementById('backButton');
 
 // State variables
+let autopipEnabled = true;
 let blacklistedSites = [];
 let whitelistedSites = [];
 let listMode = 'blacklist'; // 'blacklist' | 'whitelist'
@@ -78,6 +80,15 @@ async function safeStorageSet(items) {
     } catch (error) {
         console.error('[AutoPiP] Storage set exception:', error);
         return false;
+    }
+}
+
+// === GLOBAL TOGGLE STATE ===
+function renderGlobalToggleState(enabled) {
+    if (enabled) {
+        mainView.classList.remove('autopip-disabled');
+    } else {
+        mainView.classList.add('autopip-disabled');
     }
 }
 
@@ -141,6 +152,7 @@ whitelistModeBtn.addEventListener('click', async function() {
 // Load saved status with error handling
 (async function initializePopup() {
     const defaults = {
+        autopipEnabled: true,
         tabSwitchEnabled: true,
         windowSwitchEnabled: true,
         scrollSwitchEnabled: true,
@@ -152,11 +164,12 @@ whitelistModeBtn.addEventListener('click', async function() {
     };
     
     const result = await safeStorageGet(
-        ['tabSwitchEnabled', 'windowSwitchEnabled', 'scrollSwitchEnabled', 'debugLoggingEnabled',
-         'blacklistedSites', 'whitelistedSites', 'blacklistUseFullHostname', 'listMode'],
+        ['autopipEnabled', 'tabSwitchEnabled', 'windowSwitchEnabled', 'scrollSwitchEnabled',
+         'debugLoggingEnabled', 'blacklistedSites', 'whitelistedSites', 'blacklistUseFullHostname', 'listMode'],
         defaults
     );
     
+    autopipEnabled = result.autopipEnabled ?? true;
     const tabEnabled = result.tabSwitchEnabled ?? true;
     const windowEnabled = result.windowSwitchEnabled ?? true;
     const scrollEnabled = result.scrollSwitchEnabled ?? true;
@@ -175,6 +188,7 @@ whitelistModeBtn.addEventListener('click', async function() {
         await safeStorageSet({ whitelistedSites });
     }
 
+    autopipEnabledCheckbox.checked = autopipEnabled;
     tabSwitchCheckbox.checked = tabEnabled;
     windowSwitchCheckbox.checked = windowEnabled;
     scrollSwitchCheckbox.checked = scrollEnabled;
@@ -182,6 +196,8 @@ whitelistModeBtn.addEventListener('click', async function() {
     hostnameToggle.checked = blacklistUseFullHostname;
 
     // Send initial status to all tabs
+    renderGlobalToggleState(autopipEnabled);
+    updateAllTabs('toggleAutoPiP', autopipEnabled);
     updateAllTabs('toggleTabSwitch', tabEnabled);
     updateAllTabs('toggleWindowSwitch', windowEnabled);
     updateAllTabs('toggleScrollSwitch', scrollEnabled);
@@ -209,6 +225,13 @@ function createToggleHandler(checkbox, storageKey, command) {
 }
 
 // Setup toggle event listeners
+autopipEnabledCheckbox.addEventListener('change', async function() {
+    autopipEnabled = autopipEnabledCheckbox.checked;
+    await safeStorageSet({ autopipEnabled });
+    updateAllTabs('toggleAutoPiP', autopipEnabled);
+    renderGlobalToggleState(autopipEnabled);
+});
+
 tabSwitchCheckbox.addEventListener('change', createToggleHandler(tabSwitchCheckbox, 'tabSwitchEnabled', 'toggleTabSwitch'));
 windowSwitchCheckbox.addEventListener('change', createToggleHandler(windowSwitchCheckbox, 'windowSwitchEnabled', 'toggleWindowSwitch'));
 scrollSwitchCheckbox.addEventListener('change', createToggleHandler(scrollSwitchCheckbox, 'scrollSwitchEnabled', 'toggleScrollSwitch'));

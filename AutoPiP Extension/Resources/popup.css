@@ -79,9 +79,14 @@ body {
 .header {
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: space-between;
     margin-bottom: var(--spacing-lg);
     gap: var(--spacing-md);
+}
+
+.header-toggle {
+    flex-shrink: 0;
+    margin-left: auto;
 }
 
 .app-icon {
@@ -425,6 +430,14 @@ body {
     .remove-btn:hover {
         background-color: rgba(255, 69, 58, 0.25);
     }
+}
+
+/* Dim lower sections when AutoPiP is disabled */
+.autopip-disabled .site-control,
+.autopip-disabled .settings-container {
+    opacity: 0.4;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
 }
 
 .settings-container {
