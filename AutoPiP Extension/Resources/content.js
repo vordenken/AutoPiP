@@ -13,6 +13,8 @@ let tabSwitchEnabled = true;
 let windowSwitchEnabled = true;
 let scrollSwitchEnabled = true;
 let blacklistedSites = [];
+let whitelistedSites = [];
+let listMode = 'blacklist'; // 'blacklist' | 'whitelist'
 
 // Debug logging helper
 function debugLog(...args) {
@@ -99,11 +101,14 @@ function isCacheValid(now) {
         windowSwitchEnabled: true,
         scrollSwitchEnabled: true,
         debugLoggingEnabled: false,
-        blacklistedSites: []
+        blacklistedSites: [],
+        whitelistedSites: [],
+        listMode: 'blacklist'
     };
     
     const result = await safeStorageGet(
-        ['tabSwitchEnabled', 'windowSwitchEnabled', 'scrollSwitchEnabled', 'debugLoggingEnabled', 'blacklistedSites'],
+        ['tabSwitchEnabled', 'windowSwitchEnabled', 'scrollSwitchEnabled', 'debugLoggingEnabled',
+         'blacklistedSites', 'whitelistedSites', 'listMode'],
         defaults
     );
     
@@ -112,11 +117,15 @@ function isCacheValid(now) {
     scrollSwitchEnabled = result.scrollSwitchEnabled ?? true;
     DEBUG_LOGGING = result.debugLoggingEnabled ?? false;
     blacklistedSites = result.blacklistedSites ?? [];
+    whitelistedSites = result.whitelistedSites ?? [];
+    listMode = result.listMode ?? 'blacklist';
     
     debugLog('Initial status loaded - Tab Switch:', tabSwitchEnabled,
                 'Window Switch:', windowSwitchEnabled,
                 'Scroll Switch:', scrollSwitchEnabled,
-                'Blacklisted Sites:', blacklistedSites);
+                'List Mode:', listMode,
+                'Blacklisted Sites:', blacklistedSites,
+                'Whitelisted Sites:', whitelistedSites);
 })();
 
 // === MESSAGE HANDLERS ===
@@ -169,8 +178,33 @@ const messageHandlers = {
         blacklistedSites = message.sites || [];
         debugLog('Blacklist updated to:', blacklistedSites);
         
-        // Disable PiP if current site is now blacklisted
-        if (isBlacklisted()) {
+        // Disable PiP if current site is now blocked
+        if (isSiteBlocked()) {
+            disablePiPIfActive();
+        }
+        
+        return { success: true };
+    },
+
+    updateWhitelist: (message) => {
+        whitelistedSites = message.sites || [];
+        debugLog('Whitelist updated to:', whitelistedSites);
+        
+        if (isSiteBlocked()) {
+            disablePiPIfActive();
+        }
+        
+        return { success: true };
+    },
+
+    updateListMode: (message) => {
+        listMode = message.mode || 'blacklist';
+        if (message.whitelistedSites !== undefined) {
+            whitelistedSites = message.whitelistedSites;
+        }
+        debugLog('List mode updated to:', listMode);
+        
+        if (isSiteBlocked()) {
             disablePiPIfActive();
         }
         
@@ -190,11 +224,23 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return false;
 });
 
-// Check if current site is blacklisted
-function isBlacklisted() {
-    const currentHostname = window.location.hostname;
-    const isBlocked = blacklistedSites.includes(currentHostname);
-    debugLog('Blacklist check:', currentHostname, 'blocked:', isBlocked);
+// Check if current site is blocked (respects active list mode)
+// Checks both the full hostname (www.youtube.com) and root domain (youtube.com)
+// so the result is correct regardless of the blacklistUseFullHostname popup setting.
+function isSiteBlocked() {
+    const fullHostname = window.location.hostname;
+    const parts = fullHostname.split('.');
+    const rootDomain = parts.length >= 2 ? parts.slice(-2).join('.') : fullHostname;
+    // Match if either variant appears in the list
+    const matchesList = (list) => list.includes(fullHostname) || list.includes(rootDomain);
+
+    let isBlocked;
+    if (listMode === 'whitelist') {
+        isBlocked = !matchesList(whitelistedSites);
+    } else {
+        isBlocked = matchesList(blacklistedSites);
+    }
+    debugLog('Site block check:', fullHostname, '/', rootDomain, 'mode:', listMode, 'blocked:', isBlocked);
     return isBlocked;
 }
 
@@ -416,9 +462,9 @@ if (document.readyState === 'loading') {
 // === PIP CONTROL FUNCTIONS ===
 
 function enablePiP() {
-    // Check if current site is blacklisted
-    if (isBlacklisted()) {
-        debugLog('Site is blacklisted, skipping PiP activation');
+    // Check if current site is blocked by active list
+    if (isSiteBlocked()) {
+        debugLog('Site is blocked, skipping PiP activation');
         return;
     }
     

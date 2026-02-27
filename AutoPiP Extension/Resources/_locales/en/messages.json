@@ -42,5 +42,37 @@
     "pip_on_scroll": {
         "message": "PiP on Scroll (YouTube)",
         "description": "Label for scroll feature"
+    },
+    "list_mode": {
+        "message": "List Mode",
+        "description": "Label for the list mode switcher"
+    },
+    "blacklist_mode": {
+        "message": "Blacklist",
+        "description": "Blacklist mode label"
+    },
+    "whitelist_mode": {
+        "message": "Whitelist",
+        "description": "Whitelist mode label"
+    },
+    "whitelisted_sites": {
+        "message": "Whitelisted Sites",
+        "description": "Title for the whitelist section"
+    },
+    "no_sites_whitelisted": {
+        "message": "No sites whitelisted",
+        "description": "Empty state message for whitelist"
+    },
+    "remove_from_whitelist": {
+        "message": "Remove from whitelist",
+        "description": "Tooltip for whitelist remove button"
+    },
+    "clear_blacklist": {
+        "message": "Clear all blacklisted sites",
+        "description": "Tooltip for clear blacklist button"
+    },
+    "clear_whitelist": {
+        "message": "Clear all whitelisted sites",
+        "description": "Tooltip for clear whitelist button"
     }
 }

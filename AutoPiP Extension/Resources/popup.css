@@ -204,6 +204,81 @@ body {
     color: var(--accent-color);
 }
 
+/* Site row: hostname + action button */
+.site-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-sm);
+}
+
+.site-hostname {
+    font-weight: 500;
+    color: var(--accent-color);
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    min-width: 0;
+    text-align: left;
+}
+
+.site-action-btn {
+    flex-shrink: 0;
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1.5px solid var(--border-color);
+    background: transparent;
+    color: var(--secondary-text-color);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+    white-space: nowrap;
+}
+
+.site-action-btn:hover:not(:disabled) {
+    background-color: var(--hover-color);
+    color: var(--text-color);
+    border-color: var(--secondary-text-color);
+}
+
+.site-action-btn:focus-visible {
+    outline: var(--focus-outline);
+    outline-offset: 2px;
+}
+
+.site-action-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+/* Active states */
+.site-action-btn.state-blocked {
+    background-color: var(--danger-color);
+    border-color: var(--danger-color);
+    color: #ffffff;
+}
+
+.site-action-btn.state-blocked:hover:not(:disabled) {
+    background-color: transparent;
+    color: var(--danger-color);
+}
+
+.site-action-btn.state-allowed {
+    background-color: var(--success-color);
+    border-color: var(--success-color);
+    color: #ffffff;
+}
+
+.site-action-btn.state-allowed:hover:not(:disabled) {
+    background-color: transparent;
+    color: var(--success-color);
+}
+
 .blacklist-header {
     display: flex;
     align-items: center;
@@ -533,4 +608,191 @@ hr {
 
 .checkbox:active::before {
     width: 24px;
+}
+
+/* =========================================
+   Mode Switcher (Blacklist / Whitelist)
+   ========================================= */
+
+.mode-switcher {
+    display: flex;
+    width: 100%;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+    margin-bottom: var(--spacing-xs);
+}
+
+.mode-btn {
+    flex: 1;
+    padding: 5px 0;
+    border: none;
+    background: transparent;
+    color: var(--secondary-text-color);
+    font-size: 12px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background-color 0.2s, color 0.2s;
+    line-height: 1.4;
+}
+
+.mode-btn:first-child {
+    border-right: 1px solid var(--border-color);
+}
+
+.mode-btn.active {
+    background-color: var(--accent-color);
+    color: #ffffff;
+    font-weight: 600;
+}
+
+.mode-btn:hover:not(.active) {
+    background-color: var(--hover-color);
+    color: var(--text-color);
+}
+
+.mode-btn:focus-visible {
+    outline: var(--focus-outline);
+    outline-offset: -2px;
+}
+
+/* =========================================
+   List Header Row (header + clear button)
+   ========================================= */
+
+.list-header-row {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.list-header-row .blacklist-header {
+    flex: 1;
+    min-width: 0;
+    margin: var(--spacing-xs) 0;
+}
+
+/* Clear-List Button */
+.clear-list-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    padding: 4px 6px;
+    border-radius: var(--radius-sm);
+    color: var(--secondary-text-color);
+    transition: background-color 0.2s, color 0.2s;
+    flex-shrink: 0;
+    line-height: 1;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.clear-list-btn:hover {
+    background-color: rgba(255, 59, 48, 0.12);
+    color: var(--danger-color);
+}
+
+.clear-list-btn:focus-visible {
+    outline: var(--focus-outline);
+    outline-offset: 1px;
+}
+
+@media (prefers-color-scheme: dark) {
+    .clear-list-btn:hover {
+        background-color: rgba(255, 69, 58, 0.2);
+    }
+}
+
+/* =========================================
+   Whitelist visual accent
+   ========================================= */
+
+.whitelist-title {
+    color: var(--success-color) !important;
+}
+
+.whitelist-remove-btn:hover {
+    background-color: rgba(52, 199, 89, 0.15) !important;
+    color: var(--success-color) !important;
+}
+
+@media (prefers-color-scheme: dark) {
+    .whitelist-remove-btn:hover {
+        background-color: rgba(50, 215, 75, 0.2) !important;
+        color: var(--success-color) !important;
+    }
+}
+
+/* =========================================
+   Inline Confirm Dialog
+   ========================================= */
+
+.confirm-overlay {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    animation: fadeIn 0.15s ease-in-out;
+}
+
+.confirm-box {
+    background-color: var(--background-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-md);
+    width: 210px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    text-align: center;
+}
+
+.confirm-message {
+    font-size: 13px;
+    color: var(--text-color);
+    margin: 0 0 var(--spacing-md) 0;
+    line-height: 1.5;
+}
+
+.confirm-buttons {
+    display: flex;
+    gap: var(--spacing-sm);
+    justify-content: center;
+}
+
+.confirm-btn {
+    flex: 1;
+    padding: 7px 0;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.15s;
+}
+
+.confirm-btn:hover {
+    opacity: 0.85;
+}
+
+.confirm-btn:focus-visible {
+    outline: var(--focus-outline);
+    outline-offset: 2px;
+}
+
+.confirm-cancel {
+    background-color: var(--hover-color);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+}
+
+.confirm-ok {
+    background-color: var(--danger-color);
+    color: #ffffff;
 }

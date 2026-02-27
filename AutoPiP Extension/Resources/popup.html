@@ -16,18 +16,43 @@
         </div>
 
         <div class="site-control">
-            <div class="setting">
-                <label for="siteToggle">
-                    <span id="currentHostname">Loading...</span>
-                </label>
-                <input type="checkbox" class="checkbox" id="siteToggle" checked aria-label="Enable PiP for current site">
+            <div class="site-row">
+                <span class="site-hostname" id="currentHostname">Loading...</span>
+                <button class="site-action-btn" id="siteActionBtn">Block</button>
             </div>
-            <button class="blacklist-header" id="blacklistHeader" aria-expanded="false" aria-controls="blacklistList">
-                <span class="chevron" id="chevron" aria-hidden="true">►</span>
-                <span class="blacklist-title">Blacklisted Sites (<span id="blacklistCount">0</span>)</span>
-            </button>
-            <div class="blacklist-list" id="blacklistList">
-                <!-- Dynamically populated -->
+
+            <!-- Mode Switcher -->
+            <div class="mode-switcher" role="group" aria-label="List mode">
+                <button class="mode-btn active" id="blacklistModeBtn" data-mode="blacklist">Blacklist</button>
+                <button class="mode-btn" id="whitelistModeBtn" data-mode="whitelist">Whitelist</button>
+            </div>
+
+            <!-- Blacklist Section -->
+            <div id="blacklistSection">
+                <div class="list-header-row">
+                    <button class="blacklist-header" id="blacklistHeader" aria-expanded="false" aria-controls="blacklistList">
+                        <span class="chevron" id="chevron" aria-hidden="true">►</span>
+                        <span class="blacklist-title">Blacklisted Sites (<span id="blacklistCount">0</span>)</span>
+                    </button>
+                    <button class="clear-list-btn" id="clearBlacklistBtn" title="Clear all blacklisted sites" aria-label="Clear all blacklisted sites">🗑</button>
+                </div>
+                <div class="blacklist-list" id="blacklistList">
+                    <!-- Dynamically populated -->
+                </div>
+            </div>
+
+            <!-- Whitelist Section -->
+            <div id="whitelistSection" class="hidden">
+                <div class="list-header-row">
+                    <button class="blacklist-header" id="whitelistHeader" aria-expanded="false" aria-controls="whitelistList">
+                        <span class="chevron" id="whitelistChevron" aria-hidden="true">►</span>
+                        <span class="blacklist-title whitelist-title">Whitelisted Sites (<span id="whitelistCount">0</span>)</span>
+                    </button>
+                    <button class="clear-list-btn" id="clearWhitelistBtn" title="Clear all whitelisted sites" aria-label="Clear all whitelisted sites">🗑</button>
+                </div>
+                <div class="blacklist-list" id="whitelistList">
+                    <!-- Dynamically populated -->
+                </div>
             </div>
         </div>
 
@@ -93,6 +118,17 @@
             <div class="setting">
                 <label for="hostnameToggle">Use full hostname (including subdomain)</label>
                 <input type="checkbox" class="checkbox" id="hostnameToggle" checked aria-label="Use full hostname including subdomain for blacklist">
+            </div>
+        </div>
+    </div>
+
+    <!-- Inline Confirm Dialog (window.confirm is blocked in Safari extension popups) -->
+    <div class="confirm-overlay hidden" id="confirmOverlay" role="dialog" aria-modal="true" aria-labelledby="confirmMessage">
+        <div class="confirm-box">
+            <p class="confirm-message" id="confirmMessage"></p>
+            <div class="confirm-buttons">
+                <button class="confirm-btn confirm-cancel" id="confirmCancel">Cancel</button>
+                <button class="confirm-btn confirm-ok" id="confirmOk">Clear</button>
             </div>
         </div>
     </div>
