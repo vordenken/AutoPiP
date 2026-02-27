@@ -3,6 +3,30 @@
     <channel>
         <title>AutoPiP Updates</title>
         <item>
+            <title>Version 2.0.0</title>
+            <description>
+                <![CDATA[
+                    <h3>New Features</h3>
+                    <ul>
+                        <li>Global on/off toggle to temporarily disable AutoPiP without removing the extension</li>
+                        <li>Configurable keyboard shortcut to manually trigger PiP (default: ⌥P)</li>
+                        <li>Blacklist / Whitelist mode to control which sites AutoPiP is active on</li>
+                    </ul>
+                    <h3>Under the Hood</h3>
+                    <ul>
+                        <li>Updated Sparkle to 2.9.0</li>
+                    </ul>
+                ]]>
+            </description>
+            <pubDate>Fri, 27 Feb 2026 12:00:00 +0000</pubDate>
+            <enclosure
+                url="https://github.com/vordenken/autopip/releases/download/v2.0.0/AutoPiP.dmg"
+                sparkle:version="2.0.0"
+                sparkle:edSignature="R7DiDfc40yk1tpXuU3p3o6WJ0XEiISMQKjSmex8/AZt1jeRHLZcQaX1Nb+7Xn0tEF139DXux0mJIf8LfPdAQBg=="
+                length="2288354"
+                type="application/octet-stream"/>
+        </item>
+        <item>
             <title>Version 1.0.1</title>
             <description>
                 <![CDATA[
