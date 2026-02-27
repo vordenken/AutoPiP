@@ -19,6 +19,9 @@ A Safari extension that automatically enables Picture-in-Picture (PiP) mode for 
 - Smart detection of actively playing videos
 - Automatic disable when returning to video tab
 - Support for multiple streaming platforms
+- Global on/off toggle to temporarily disable AutoPiP without removing the extension
+- Configurable keyboard shortcut to manually trigger PiP (default: ⌥P)
+- Blacklist / Whitelist mode to control which sites AutoPiP is active on
 
 ## 🚀 Quick Start
 
@@ -43,7 +46,7 @@ A Safari extension that automatically enables Picture-in-Picture (PiP) mode for 
 
 ## 💻 Requirements
 
-- macOS 14 or later
+- macOS 13.5 or later
 - Safari 16 or later
 
 > I wanted to add Chrome/Firefox support but Safari is the only browser that allows calling PiP without user-interaction - So unless this changes, AutoPiP will be Safari only

@@ -1,70 +1,290 @@
 // content.js
+
+// Configuration constants
+const FOCUS_CHECK_DELAY_MS = 100; // Delay to distinguish internal focus changes from actual window blur
+const CACHE_DURATION_MS = 1000; // Video selector cache duration in milliseconds
+const INTERSECTION_THRESHOLD = 0.1; // IntersectionObserver threshold (10% visibility)
+const DOM_READY_DELAY_MS = 500; // Delay before initializing IntersectionObserver
+
+let DEBUG_LOGGING = false; // Can be toggled via popup settings
+
+// State variables
+let autopipEnabled = true;
 let tabSwitchEnabled = true;
 let windowSwitchEnabled = true;
 let scrollSwitchEnabled = true;
-let lastScrollPosition = window.scrollY;
-let isVideoVisible = true;
+let blacklistedSites = [];
+let whitelistedSites = [];
+let listMode = 'blacklist'; // 'blacklist' | 'whitelist'
+let keyboardShortcutEnabled = false;
+let keyboardShortcutKey = 'p';
+let keyboardShortcutModifier = 'alt';
 
-// Load initial status
-browser.storage.local.get(['tabSwitchEnabled', 'windowSwitchEnabled', 'scrollSwitchEnabled'], function(result) {
-    tabSwitchEnabled = result.tabSwitchEnabled === undefined ? true : result.tabSwitchEnabled;
-    windowSwitchEnabled = result.windowSwitchEnabled === undefined ? true : result.windowSwitchEnabled;
-    scrollSwitchEnabled = result.scrollSwitchEnabled === undefined ? true : result.scrollSwitchEnabled;
-    console.log('Initial status loaded - Tab Switch:', tabSwitchEnabled,
+// Debug logging helper
+function debugLog(...args) {
+    if (DEBUG_LOGGING) {
+        console.log('[AutoPiP]', ...args);
+    }
+}
+
+// === ERROR HANDLING & STORAGE HELPERS ===
+
+/**
+ * Safely get values from browser storage with error handling
+ * @param {Array|Object} keys - Storage keys to retrieve
+ * @param {Object} defaults - Default values if storage fails
+ * @returns {Promise<Object>} - Storage result or defaults
+ */
+async function safeStorageGet(keys, defaults = {}) {
+    try {
+        const result = await browser.storage.local.get(keys);
+        if (browser.runtime.lastError) {
+            console.error('[AutoPiP] Storage get error:', browser.runtime.lastError);
+            return defaults;
+        }
+        return result;
+    } catch (error) {
+        console.error('[AutoPiP] Storage get exception:', error);
+        return defaults;
+    }
+}
+
+// === HELPER FUNCTIONS ===
+
+/**
+ * Check if video is in playable state
+ * @param {HTMLVideoElement} video - Video element to check
+ * @returns {boolean} - True if video can be played
+ */
+function isVideoPlayable(video) {
+    return !video.paused && video.currentTime > 0 && !video.ended;
+}
+
+/**
+ * Set webkit presentation mode if supported
+ * @param {HTMLVideoElement} video - Video element
+ * @param {string} mode - Presentation mode ('picture-in-picture' or 'inline')
+ * @returns {boolean} - True if mode was set successfully
+ */
+function setWebkitPresentationMode(video, mode) {
+    if (video.webkitSupportsPresentationMode && 
+        typeof video.webkitSetPresentationMode === 'function') {
+        video.webkitSetPresentationMode(mode);
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Disable PiP if currently active
+ */
+function disablePiPIfActive() {
+    const video = getVideo();
+    if (video && isPiPActive(video)) {
+        disablePiP();
+    }
+}
+
+/**
+ * Check if video cache is still valid
+ * @param {number} now - Current timestamp
+ * @returns {boolean} - True if cache is valid
+ */
+function isCacheValid(now) {
+    return cachedVideo && 
+           now - cacheTimestamp < CACHE_DURATION_MS && 
+           document.contains(cachedVideo);
+}
+
+// === INITIALIZATION ===
+
+// Load initial status with error handling
+(async function initializeContentScript() {
+    const defaults = {
+        autopipEnabled: true,
+        tabSwitchEnabled: true,
+        windowSwitchEnabled: true,
+        scrollSwitchEnabled: true,
+        debugLoggingEnabled: false,
+        blacklistedSites: [],
+        whitelistedSites: [],
+        listMode: 'blacklist',
+        keyboardShortcutEnabled: false,
+        keyboardShortcutKey: 'KeyP',
+        keyboardShortcutModifier: 'alt'
+    };
+    
+    const result = await safeStorageGet(
+        ['autopipEnabled', 'tabSwitchEnabled', 'windowSwitchEnabled', 'scrollSwitchEnabled',
+         'debugLoggingEnabled', 'blacklistedSites', 'whitelistedSites', 'listMode',
+         'keyboardShortcutEnabled', 'keyboardShortcutKey', 'keyboardShortcutModifier'],
+        defaults
+    );
+    
+    autopipEnabled = result.autopipEnabled ?? true;
+    tabSwitchEnabled = result.tabSwitchEnabled ?? true;
+    windowSwitchEnabled = result.windowSwitchEnabled ?? true;
+    scrollSwitchEnabled = result.scrollSwitchEnabled ?? true;
+    DEBUG_LOGGING = result.debugLoggingEnabled ?? false;
+    blacklistedSites = result.blacklistedSites ?? [];
+    whitelistedSites = result.whitelistedSites ?? [];
+    listMode = result.listMode ?? 'blacklist';
+    keyboardShortcutEnabled = result.keyboardShortcutEnabled ?? false;
+    keyboardShortcutKey = result.keyboardShortcutKey ?? 'KeyP';
+    keyboardShortcutModifier = result.keyboardShortcutModifier ?? 'alt';
+    
+    debugLog('Initial status loaded - Tab Switch:', tabSwitchEnabled,
                 'Window Switch:', windowSwitchEnabled,
-                'Scroll Switch:', scrollSwitchEnabled);
-});
+                'Scroll Switch:', scrollSwitchEnabled,
+                'List Mode:', listMode,
+                'Blacklisted Sites:', blacklistedSites,
+                'Whitelisted Sites:', whitelistedSites);
+})();
 
-// Message listener for toggle commands
-browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.command === "toggleTabSwitch") {
+// === MESSAGE HANDLERS ===
+// Message handler map
+const messageHandlers = {
+    toggleAutoPiP: (message) => {
+        autopipEnabled = message.enabled;
+        debugLog('AutoPiP toggled to:', autopipEnabled);
+
+        if (!autopipEnabled) {
+            disablePiPIfActive();
+        }
+
+        return { enabled: autopipEnabled };
+    },
+
+    toggleTabSwitch: (message) => {
         tabSwitchEnabled = message.enabled;
-        console.log('Tab Switch toggled to:', tabSwitchEnabled);
+        debugLog('Tab Switch toggled to:', tabSwitchEnabled);
         
         if (!tabSwitchEnabled) {
-            const video = getVideo();
-            if (video && isPiPActive(video)) {
-                disablePiP();
-            }
+            disablePiPIfActive();
         }
         
-        sendResponse({enabled: tabSwitchEnabled});
-        return true;
-    }
-    else if (message.command === "toggleWindowSwitch") {
+        return { enabled: tabSwitchEnabled };
+    },
+    
+    toggleWindowSwitch: (message) => {
         windowSwitchEnabled = message.enabled;
-        console.log('Window Switch toggled to:', windowSwitchEnabled);
+        debugLog('Window Switch toggled to:', windowSwitchEnabled);
         
         if (!windowSwitchEnabled) {
-            const video = getVideo();
-            if (video && isPiPActive(video)) {
-                disablePiP();
-            }
+            disablePiPIfActive();
         }
         
-        sendResponse({enabled: windowSwitchEnabled});
-        return true;
-    }
-    else if (message.command === "toggleScrollSwitch") {
+        return { enabled: windowSwitchEnabled };
+    },
+    
+    toggleScrollSwitch: (message) => {
         scrollSwitchEnabled = message.enabled;
-        console.log('Scroll Switch toggled to:', scrollSwitchEnabled);
+        debugLog('Scroll Switch toggled to:', scrollSwitchEnabled);
+        
+        // Re-setup observer when scroll switch is toggled
+        setupVideoObserver();
         
         if (!scrollSwitchEnabled) {
-            const video = getVideo();
-            if (video && isPiPActive(video)) {
-                disablePiP();
-            }
+            disablePiPIfActive();
         }
         
-        sendResponse({enabled: scrollSwitchEnabled});
+        return { enabled: scrollSwitchEnabled };
+    },
+    
+    toggleDebugLogging: (message) => {
+        DEBUG_LOGGING = message.enabled;
+        debugLog('Debug Logging toggled to:', DEBUG_LOGGING);
+        
+        return { enabled: DEBUG_LOGGING };
+    },
+    
+    updateBlacklist: (message) => {
+        blacklistedSites = message.sites || [];
+        debugLog('Blacklist updated to:', blacklistedSites);
+        
+        // Disable PiP if current site is now blocked
+        if (isSiteBlocked()) {
+            disablePiPIfActive();
+        }
+        
+        return { success: true };
+    },
+
+    updateWhitelist: (message) => {
+        whitelistedSites = message.sites || [];
+        debugLog('Whitelist updated to:', whitelistedSites);
+        
+        if (isSiteBlocked()) {
+            disablePiPIfActive();
+        }
+        
+        return { success: true };
+    },
+
+    updateListMode: (message) => {
+        listMode = message.mode || 'blacklist';
+        if (message.whitelistedSites !== undefined) {
+            whitelistedSites = message.whitelistedSites;
+        }
+        debugLog('List mode updated to:', listMode);
+        
+        if (isSiteBlocked()) {
+            disablePiPIfActive();
+        }
+        
+        return { success: true };
+    },
+
+    toggleKeyboardShortcut: (message) => {
+        keyboardShortcutEnabled = message.enabled;
+        debugLog('Keyboard Shortcut toggled to:', keyboardShortcutEnabled);
+        return { enabled: keyboardShortcutEnabled };
+    },
+
+    updateShortcutKey: (message) => {
+        keyboardShortcutKey = message.key || 'p';
+        keyboardShortcutModifier = message.modifier ?? 'alt';
+        debugLog('Shortcut Key updated to:', keyboardShortcutModifier, '+', keyboardShortcutKey);
+        return { success: true };
+    }
+};
+
+browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    const handler = messageHandlers[message.command];
+    
+    if (handler) {
+        const response = handler(message);
+        sendResponse(response);
         return true;
     }
+    
+    return false;
 });
+
+// Check if current site is blocked (respects active list mode)
+// Checks both the full hostname (www.youtube.com) and root domain (youtube.com)
+// so the result is correct regardless of the blacklistUseFullHostname popup setting.
+function isSiteBlocked() {
+    const fullHostname = window.location.hostname;
+    const parts = fullHostname.split('.');
+    const rootDomain = parts.length >= 2 ? parts.slice(-2).join('.') : fullHostname;
+    // Match if either variant appears in the list
+    const matchesList = (list) => list.includes(fullHostname) || list.includes(rootDomain);
+
+    let isBlocked;
+    if (listMode === 'whitelist') {
+        isBlocked = !matchesList(whitelistedSites);
+    } else {
+        isBlocked = matchesList(blacklistedSites);
+    }
+    debugLog('Site block check:', fullHostname, '/', rootDomain, 'mode:', listMode, 'blocked:', isBlocked);
+    return isBlocked;
+}
 
 // Helper function for PiP status
 function isPiPActive(video) {
     return document.pictureInPictureElement ||
-        (video.webkitPresentationMode && video.webkitPresentationMode === "picture-in-picture");
+        (video.webkitPresentationMode && video.webkitPresentationMode === 'picture-in-picture');
 }
 
 // Helper function to check if element is in viewport
@@ -87,23 +307,23 @@ document.addEventListener("visibilitychange", (event) => {
 
     // Check if tab switch is enabled before proceeding
     if (!tabSwitchEnabled) {
-        console.log('Tab switch is disabled, ignoring visibility change');
+        debugLog('Tab switch is disabled, ignoring visibility change');
         return;
     }
 
     const video = getVideo();
     if (!video) return;
 
-    console.log('Tab visibility changed, hidden:', document.hidden);
+    debugLog('Tab visibility changed, hidden:', document.hidden);
 
     if (document.hidden) {
-        if (!video.paused && video.currentTime > 0 && !video.ended) {
-            console.log('Enabling PiP on tab switch');
+        if (isVideoPlayable(video)) {
+            debugLog('Enabling PiP on tab switch');
             enablePiP();
         }
     } else {
         if (document.hasFocus() && isPiPActive(video)) {
-            console.log('Disabling PiP on tab switch');
+            debugLog('Disabling PiP on tab switch');
             disablePiP();
         }
     }
@@ -117,7 +337,7 @@ window.addEventListener("blur", (event) => {
 
     // Check if window switch is enabled before proceeding
     if (!windowSwitchEnabled) {
-        console.log('Window switch is disabled, ignoring blur');
+        debugLog('Window switch is disabled, ignoring blur');
         return;
     }
     
@@ -125,18 +345,18 @@ window.addEventListener("blur", (event) => {
     setTimeout(() => {
         // If focus is still within the document, it's just an internal focus change (e.g., clicking chat)
         if (document.hasFocus()) {
-            console.log('Focus is still within document, ignoring blur');
+            debugLog('Focus is still within document, ignoring blur');
             return;
         }
         
         const video = getVideo();
         if (!video) return;
 
-        if (!video.paused && video.currentTime > 0 && !video.ended) {
-            console.log('Enabling PiP on window blur');
+        if (isVideoPlayable(video)) {
+            debugLog('Enabling PiP on window blur');
             enablePiP();
         }
-    }, 100);
+    }, FOCUS_CHECK_DELAY_MS);
 });
 
 window.addEventListener("focus", (event) => {
@@ -147,7 +367,7 @@ window.addEventListener("focus", (event) => {
 
     // Check if window switch is enabled before proceeding
     if (!windowSwitchEnabled) {
-        console.log('Window switch is disabled, ignoring focus');
+        debugLog('Window switch is disabled, ignoring focus');
         return;
     }
 
@@ -155,133 +375,229 @@ window.addEventListener("focus", (event) => {
     if (!video) return;
 
     if (!document.hidden && document.hasFocus() && isPiPActive(video)) {
-        console.log('Disabling PiP on window focus');
+        debugLog('Disabling PiP on window focus');
         disablePiP();
     }
 });
 
-// Scroll event listener
-window.addEventListener('scroll', debounce(() => {
-    if (!scrollSwitchEnabled) {
-        console.log('Scroll switch is disabled, ignoring scroll');
+// IntersectionObserver for scroll-based PiP (better performance than scroll listener)
+let videoObserver = null;
+let observedVideo = null;
+
+function setupVideoObserver() {
+    if (!scrollSwitchEnabled || !isYouTubePage()) {
+        if (videoObserver && observedVideo) {
+            videoObserver.unobserve(observedVideo);
+            observedVideo = null;
+        }
         return;
     }
 
     const video = getVideo();
-    if (!video || !isYouTubePage()) return;
-    
-    const videoVisible = isElementInViewport(video);
-    
-    if (!videoVisible && isVideoVisible && !video.paused) {
-        console.log('Video scrolled out of view, enabling PiP');
-        enablePiP();
-        isVideoVisible = false;
-    } else if (videoVisible && !isVideoVisible) {
-        console.log('Video scrolled into view, disabling PiP');
-        disablePiP();
-        isVideoVisible = true;
-    }
-}, 150));
+    if (!video || video === observedVideo) return;
 
-// Debounce helper function
-function debounce(func, wait) {
-    let timeout;
-    return function executedFunction(...args) {
-        const later = () => {
-            clearTimeout(timeout);
-            func(...args);
-        };
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-    };
+    // Clean up previous observer
+    if (videoObserver && observedVideo) {
+        videoObserver.unobserve(observedVideo);
+    }
+
+    // Track visibility state for this video
+    let wasVisible = isElementInViewport(video);
+
+    // Create observer if needed
+    if (!videoObserver) {
+        videoObserver = new IntersectionObserver((entries) => {
+            if (!scrollSwitchEnabled) return;
+
+            entries.forEach(entry => {
+                const video = entry.target;
+                const isVisible = entry.isIntersecting;
+
+                if (!isVisible && wasVisible && !video.paused) {
+                    debugLog('Video scrolled out of view, enabling PiP');
+                    enablePiP();
+                    wasVisible = false;
+                } else if (isVisible && !wasVisible) {
+                    debugLog('Video scrolled into view, disabling PiP');
+                    disablePiP();
+                    wasVisible = true;
+                }
+            });
+        }, {
+            threshold: INTERSECTION_THRESHOLD
+        });
+    }
+
+    // Observe new video
+    videoObserver.observe(video);
+    observedVideo = video;
 }
 
 // Helper function to check if current page is YouTube
 function isYouTubePage() {
-    const allowedHosts = ['youtube.com', 'www.youtube.com'];
-        const hostname = window.location.hostname;
-        return allowedHosts.includes(hostname);
+    const hostname = window.location.hostname;
+    return ['youtube.com', 'www.youtube.com'].includes(hostname);
 }
 
-// Watch for DOM changes
-new MutationObserver(checkForVideo).observe(document, {
+// Watch for DOM changes and invalidate video cache
+new MutationObserver(() => {
+    invalidateVideoCache();
+}).observe(document, {
     subtree: true,
     childList: true
 });
 
-function dispatchMessage(messageName, parameters) {
-    browser.runtime.sendMessage({
-        name: messageName,
-        params: parameters
-    });
-}
+// Video selector caching with invalidation
+let cachedVideo = null;
+let cacheTimestamp = 0;
 
-var previousResult = null;
-
-function checkForVideo() {
-    if (getVideo() != null) {
-        if (previousResult === null || previousResult === false) {
-            dispatchMessage("videoCheck", {found: true});
-        }
-        previousResult = true;
-    } else if (window == window.top) {
-        if (previousResult === null || previousResult === true) {
-            dispatchMessage("videoCheck", {found: false});
-        }
-        previousResult = false;
-    }
-}
+// Video selectors in priority order
+const VIDEO_SELECTORS = [
+    { name: 'YouTube', selector: '.html5-main-video' },
+    { name: 'Disney+', selector: '#hivePlayer' },
+    { name: 'Twitch', selector: '.video-player__container video, video[data-a-player-state]' },
+    { name: 'Generic', selector: 'video' }
+];
 
 function getVideo() {
-    // Prioritize YouTube player
-    const youtubeVideo = document.querySelector('.html5-main-video');
-    if (youtubeVideo) return youtubeVideo;
+    const now = Date.now();
     
-    // Disney+ Videoplayer
-    const disneyPlusVideo = document.querySelector('#hivePlayer');
-    if (disneyPlusVideo) return disneyPlusVideo;
-
-    // Twitch: Search for typical Twitch video containers
-    const twitchVideo = document.querySelector('.video-player__container video, video[data-a-player-state]');
-    if (twitchVideo) return twitchVideo;
-
-    // Fallback: Search for generic video-Element
-    return document.querySelector('video');
+    // Return cached video if still valid
+    if (isCacheValid(now)) {
+        return cachedVideo;
+    }
+    
+    // Try each selector in priority order
+    for (const { selector } of VIDEO_SELECTORS) {
+        const video = document.querySelector(selector);
+        if (video) {
+            cachedVideo = video;
+            cacheTimestamp = now;
+            return video;
+        }
+    }
+    
+    return null;
 }
 
+// Invalidate video cache when DOM changes significantly
+function invalidateVideoCache() {
+    cachedVideo = null;
+    cacheTimestamp = 0;
+}
+
+// Initialize IntersectionObserver after getVideo is defined
+// Wait for DOM to be ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(setupVideoObserver, DOM_READY_DELAY_MS);
+    });
+} else {
+    setTimeout(setupVideoObserver, DOM_READY_DELAY_MS);
+}
+
+// === PIP CONTROL FUNCTIONS ===
+
 function enablePiP() {
-    const video = getVideo();
-    if (!video) return;
+    // Check global on/off switch first
+    if (!autopipEnabled) {
+        debugLog('AutoPiP is disabled globally, skipping PiP activation');
+        return;
+    }
+
+    // Check if current site is blocked by active list
+    if (isSiteBlocked()) {
+        debugLog('Site is blocked, skipping PiP activation');
+        return;
+    }
     
-    if (!video.paused && video.currentTime > 0 && !video.ended) {
-        try {
-            if (video.webkitSupportsPresentationMode &&
-                typeof video.webkitSetPresentationMode === "function") {
-                video.webkitSetPresentationMode('picture-in-picture');
-            } else {
-                video.requestPictureInPicture()
-                    .catch(console.error);
-            }
-            console.log('PiP enabled successfully');
-        } catch (error) {
-            console.error('PiP enable error:', error);
+    const video = getVideo();
+    if (!video) {
+        debugLog('No video element found for PiP');
+        return;
+    }
+    
+    if (!isVideoPlayable(video)) {
+        debugLog('Video not in playable state for PiP:', {
+            paused: video.paused,
+            currentTime: video.currentTime,
+            ended: video.ended
+        });
+        return;
+    }
+    
+    try {
+        if (setWebkitPresentationMode(video, 'picture-in-picture')) {
+            debugLog('PiP enabled successfully');
+        } else {
+            debugLog('PiP not supported on this video element');
         }
+    } catch (error) {
+        console.error('[AutoPiP] PiP enable exception:', error.message || error);
+        debugLog('PiP activation exception:', error.name);
     }
 }
 
 function disablePiP() {
     const video = getVideo();
-    if (!video) return;
+    if (!video) {
+        debugLog('No video element found for PiP disable');
+        return;
+    }
+    
+    if (!isPiPActive(video)) {
+        debugLog('No active PiP to disable');
+        return;
+    }
 
     try {
-        if (video.webkitSupportsPresentationMode &&
-            typeof video.webkitSetPresentationMode === "function") {
-            video.webkitSetPresentationMode('inline');
-        } else if (document.pictureInPictureElement) {
-            document.exitPictureInPicture();
+        if (setWebkitPresentationMode(video, 'inline')) {
+            debugLog('PiP disabled successfully');
+        } else {
+            debugLog('PiP disable failed - webkit API not available');
         }
-        console.log('PiP disabled successfully');
     } catch (error) {
-        console.error('PiP disable error:', error);
+        console.error('[AutoPiP] PiP disable exception:', error.message || error);
+        debugLog('PiP disable exception:', error.name);
     }
 }
+
+// Manual PiP toggle – bypasses autopipEnabled & isSiteBlocked (explicit user action)
+function togglePiP() {
+    const video = getVideo();
+    if (!video) {
+        debugLog('Keyboard shortcut: no video found');
+        return;
+    }
+    if (isPiPActive(video)) {
+        debugLog('Keyboard shortcut: disabling PiP');
+        disablePiP();
+    } else {
+        debugLog('Keyboard shortcut: enabling PiP (manual override)');
+        try {
+            if (!setWebkitPresentationMode(video, 'picture-in-picture')) {
+                debugLog('PiP not supported on this video element');
+            }
+        } catch (error) {
+            console.error('[AutoPiP] Keyboard PiP toggle exception:', error.message || error);
+        }
+    }
+}
+
+// === KEYBOARD SHORTCUT ===
+document.addEventListener('keydown', (event) => {
+    if (!keyboardShortcutEnabled) return;
+
+    const modifierMatch =
+        (keyboardShortcutModifier === 'alt'  &&  event.altKey && !event.ctrlKey && !event.metaKey) ||
+        (keyboardShortcutModifier === 'ctrl' && !event.altKey &&  event.ctrlKey && !event.metaKey) ||
+        (keyboardShortcutModifier === 'meta' && !event.altKey && !event.ctrlKey &&  event.metaKey) ||
+        (keyboardShortcutModifier === ''     && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey);
+
+    if (!modifierMatch) return;
+    if (event.code !== keyboardShortcutKey) return;
+
+    event.preventDefault();
+    debugLog('Keyboard shortcut triggered:', keyboardShortcutModifier, '+', keyboardShortcutKey);
+    togglePiP();
+});
