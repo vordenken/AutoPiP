@@ -29,6 +29,8 @@ A Safari extension that automatically enables Picture-in-Picture (PiP) mode for 
 2. Install and enable the Safari extension
 3. Start watching videos - PiP activates automatically!
 
+> **Updating:** To receive updates, open the AutoPiP app from time to time. Sparkle checks for updates automatically (once per day).
+
 ## 🎯 Compatibility
 
 | ✅ Supported | ❌ Not Supported | ⁉️ Untested |
