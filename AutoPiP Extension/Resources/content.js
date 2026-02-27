@@ -16,6 +16,9 @@ let scrollSwitchEnabled = true;
 let blacklistedSites = [];
 let whitelistedSites = [];
 let listMode = 'blacklist'; // 'blacklist' | 'whitelist'
+let keyboardShortcutEnabled = false;
+let keyboardShortcutKey = 'p';
+let keyboardShortcutModifier = 'alt';
 
 // Debug logging helper
 function debugLog(...args) {
@@ -105,12 +108,16 @@ function isCacheValid(now) {
         debugLoggingEnabled: false,
         blacklistedSites: [],
         whitelistedSites: [],
-        listMode: 'blacklist'
+        listMode: 'blacklist',
+        keyboardShortcutEnabled: false,
+        keyboardShortcutKey: 'KeyP',
+        keyboardShortcutModifier: 'alt'
     };
     
     const result = await safeStorageGet(
         ['autopipEnabled', 'tabSwitchEnabled', 'windowSwitchEnabled', 'scrollSwitchEnabled',
-         'debugLoggingEnabled', 'blacklistedSites', 'whitelistedSites', 'listMode'],
+         'debugLoggingEnabled', 'blacklistedSites', 'whitelistedSites', 'listMode',
+         'keyboardShortcutEnabled', 'keyboardShortcutKey', 'keyboardShortcutModifier'],
         defaults
     );
     
@@ -122,6 +129,9 @@ function isCacheValid(now) {
     blacklistedSites = result.blacklistedSites ?? [];
     whitelistedSites = result.whitelistedSites ?? [];
     listMode = result.listMode ?? 'blacklist';
+    keyboardShortcutEnabled = result.keyboardShortcutEnabled ?? false;
+    keyboardShortcutKey = result.keyboardShortcutKey ?? 'KeyP';
+    keyboardShortcutModifier = result.keyboardShortcutModifier ?? 'alt';
     
     debugLog('Initial status loaded - Tab Switch:', tabSwitchEnabled,
                 'Window Switch:', windowSwitchEnabled,
@@ -222,6 +232,19 @@ const messageHandlers = {
             disablePiPIfActive();
         }
         
+        return { success: true };
+    },
+
+    toggleKeyboardShortcut: (message) => {
+        keyboardShortcutEnabled = message.enabled;
+        debugLog('Keyboard Shortcut toggled to:', keyboardShortcutEnabled);
+        return { enabled: keyboardShortcutEnabled };
+    },
+
+    updateShortcutKey: (message) => {
+        keyboardShortcutKey = message.key || 'p';
+        keyboardShortcutModifier = message.modifier ?? 'alt';
+        debugLog('Shortcut Key updated to:', keyboardShortcutModifier, '+', keyboardShortcutKey);
         return { success: true };
     }
 };
@@ -538,3 +561,43 @@ function disablePiP() {
         debugLog('PiP disable exception:', error.name);
     }
 }
+
+// Manual PiP toggle – bypasses autopipEnabled & isSiteBlocked (explicit user action)
+function togglePiP() {
+    const video = getVideo();
+    if (!video) {
+        debugLog('Keyboard shortcut: no video found');
+        return;
+    }
+    if (isPiPActive(video)) {
+        debugLog('Keyboard shortcut: disabling PiP');
+        disablePiP();
+    } else {
+        debugLog('Keyboard shortcut: enabling PiP (manual override)');
+        try {
+            if (!setWebkitPresentationMode(video, 'picture-in-picture')) {
+                debugLog('PiP not supported on this video element');
+            }
+        } catch (error) {
+            console.error('[AutoPiP] Keyboard PiP toggle exception:', error.message || error);
+        }
+    }
+}
+
+// === KEYBOARD SHORTCUT ===
+document.addEventListener('keydown', (event) => {
+    if (!keyboardShortcutEnabled) return;
+
+    const modifierMatch =
+        (keyboardShortcutModifier === 'alt'  &&  event.altKey && !event.ctrlKey && !event.metaKey) ||
+        (keyboardShortcutModifier === 'ctrl' && !event.altKey &&  event.ctrlKey && !event.metaKey) ||
+        (keyboardShortcutModifier === 'meta' && !event.altKey && !event.ctrlKey &&  event.metaKey) ||
+        (keyboardShortcutModifier === ''     && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey);
+
+    if (!modifierMatch) return;
+    if (event.code !== keyboardShortcutKey) return;
+
+    event.preventDefault();
+    debugLog('Keyboard shortcut triggered:', keyboardShortcutModifier, '+', keyboardShortcutKey);
+    togglePiP();
+});

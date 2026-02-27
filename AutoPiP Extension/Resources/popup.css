@@ -624,6 +624,88 @@ hr {
 }
 
 /* =========================================
+   Keyboard Shortcut Key Button
+   ========================================= */
+
+.shortcut-label-group {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+}
+
+.shortcut-label-group label {
+    white-space: nowrap;
+    flex: 0 0 auto;
+}
+
+.shortcut-key-btn {
+    font-family: -apple-system, BlinkMacSystemFont, monospace;
+    font-size: 12px;
+    font-weight: 500;
+    background-color: var(--card-background);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 3px 8px;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: background-color 0.2s, border-color 0.2s, color 0.2s;
+    min-width: 44px;
+    text-align: center;
+}
+
+.shortcut-key-btn:hover:not(:disabled) {
+    background-color: var(--hover-color);
+}
+
+.shortcut-key-btn.recording {
+    border-color: var(--accent-color);
+    border-style: dashed;
+    color: var(--accent-color);
+}
+
+.shortcut-key-btn:focus-visible {
+    outline: var(--focus-outline);
+    outline-offset: var(--focus-outline-offset);
+}
+
+.shortcut-key-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.shortcut-reset-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--secondary-text-color);
+    padding: 2px 4px;
+    border-radius: var(--radius-sm);
+    line-height: 1;
+    transition: color 0.2s, background-color 0.2s;
+    flex-shrink: 0;
+}
+
+.shortcut-reset-btn:hover {
+    color: var(--accent-color);
+    background-color: var(--hover-color);
+}
+
+.shortcut-reset-btn:focus-visible {
+    outline: var(--focus-outline);
+    outline-offset: var(--focus-outline-offset);
+}
+
+.shortcut-reset-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+/* =========================================
    Mode Switcher (Blacklist / Whitelist)
    ========================================= */
 

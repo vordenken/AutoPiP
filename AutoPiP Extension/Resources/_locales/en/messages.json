@@ -74,5 +74,17 @@
     "clear_whitelist": {
         "message": "Clear all whitelisted sites",
         "description": "Tooltip for clear whitelist button"
+    },
+    "autopip_enabled": {
+        "message": "AutoPiP",
+        "description": "Label for global AutoPiP on/off toggle"
+    },
+    "keyboard_shortcut": {
+        "message": "Keyboard Shortcut",
+        "description": "Label for keyboard shortcut toggle in settings"
+    },
+    "shortcut_key": {
+        "message": "Shortcut Key",
+        "description": "Label for the shortcut key button in settings"
     }
 }

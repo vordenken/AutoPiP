@@ -5,6 +5,12 @@ const windowSwitchCheckbox = document.getElementById('windowSwitchCheckbox');
 const scrollSwitchCheckbox = document.getElementById('scrollSwitchCheckbox');
 const debugLoggingCheckbox = document.getElementById('debugLoggingCheckbox');
 const hostnameToggle = document.getElementById('hostnameToggle');
+const keyboardShortcutCheckbox = document.getElementById('keyboardShortcutCheckbox');
+const shortcutKeyBtn = document.getElementById('shortcutKeyBtn');
+const shortcutResetBtn = document.getElementById('shortcutResetBtn');
+
+const DEFAULT_SHORTCUT_KEY = 'KeyP';
+const DEFAULT_SHORTCUT_MODIFIER = 'alt';
 const siteActionBtn = document.getElementById('siteActionBtn');
 const currentHostnameSpan = document.getElementById('currentHostname');
 const blacklistHeader = document.getElementById('blacklistHeader');
@@ -37,6 +43,9 @@ let whitelistedSites = [];
 let listMode = 'blacklist'; // 'blacklist' | 'whitelist'
 let blacklistUseFullHostname = true;
 let currentTabUrl = null;
+let keyboardShortcutEnabled = false;
+let keyboardShortcutKey = 'p';
+let keyboardShortcutModifier = 'alt';
 
 // Set version from manifest
 const version = 'v' + browser.runtime.getManifest().version;
@@ -90,6 +99,38 @@ function renderGlobalToggleState(enabled) {
     } else {
         mainView.classList.add('autopip-disabled');
     }
+}
+
+// === KEYBOARD SHORTCUT HELPERS ===
+function codeToDisplayKey(code) {
+    if (code.startsWith('Key'))   return code.slice(3);      // 'KeyP'       → 'P'
+    if (code.startsWith('Digit')) return code.slice(5);      // 'Digit1'     → '1'
+    if (code === 'Space')         return 'Space';
+    if (code === 'Period')        return '.';
+    if (code === 'Comma')         return ',';
+    if (code === 'Slash')         return '/';
+    if (code === 'Backslash')     return '\\';
+    if (code === 'Minus')         return '-';
+    if (code === 'Equal')         return '=';
+    if (code === 'BracketLeft')   return '[';
+    if (code === 'BracketRight')  return ']';
+    if (code === 'Semicolon')     return ';';
+    if (code === 'Quote')         return "'";
+    if (code === 'Backquote')     return '`';
+    return code; // fallback: show raw code
+}
+
+function formatShortcutLabel(modifier, key) {
+    const modMap = { alt: '\u2325', ctrl: '\u2303', meta: '\u2318', '': '' };
+    return (modMap[modifier] ?? '') + codeToDisplayKey(key);
+}
+
+function renderShortcutKeyBtn() {
+    shortcutKeyBtn.textContent = formatShortcutLabel(keyboardShortcutModifier, keyboardShortcutKey);
+    shortcutKeyBtn.disabled = !keyboardShortcutEnabled;
+    const isDefault = keyboardShortcutKey === DEFAULT_SHORTCUT_KEY && keyboardShortcutModifier === DEFAULT_SHORTCUT_MODIFIER;
+    shortcutResetBtn.style.visibility = (isDefault || !keyboardShortcutEnabled) ? 'hidden' : 'visible';
+    shortcutResetBtn.disabled = !keyboardShortcutEnabled;
 }
 
 // === VIEW NAVIGATION ===
@@ -160,12 +201,16 @@ whitelistModeBtn.addEventListener('click', async function() {
         blacklistedSites: [],
         whitelistedSites: [],
         blacklistUseFullHostname: true,
-        listMode: 'blacklist'
+        listMode: 'blacklist',
+        keyboardShortcutEnabled: false,
+        keyboardShortcutKey: 'KeyP',
+        keyboardShortcutModifier: 'alt'
     };
     
     const result = await safeStorageGet(
         ['autopipEnabled', 'tabSwitchEnabled', 'windowSwitchEnabled', 'scrollSwitchEnabled',
-         'debugLoggingEnabled', 'blacklistedSites', 'whitelistedSites', 'blacklistUseFullHostname', 'listMode'],
+         'debugLoggingEnabled', 'blacklistedSites', 'whitelistedSites', 'blacklistUseFullHostname',
+         'listMode', 'keyboardShortcutEnabled', 'keyboardShortcutKey', 'keyboardShortcutModifier'],
         defaults
     );
     
@@ -179,6 +224,9 @@ whitelistModeBtn.addEventListener('click', async function() {
     whitelistedSites = result.whitelistedSites ?? [];
     blacklistUseFullHostname = result.blacklistUseFullHostname ?? true;
     listMode = result.listMode ?? 'blacklist';
+    keyboardShortcutEnabled = result.keyboardShortcutEnabled ?? false;
+    keyboardShortcutKey = result.keyboardShortcutKey ?? 'KeyP';
+    keyboardShortcutModifier = result.keyboardShortcutModifier ?? 'alt';
 
     // Deduplicate: a site must not exist in both lists.
     // Blacklist takes precedence – remove any overlap from whitelist.
@@ -194,6 +242,8 @@ whitelistModeBtn.addEventListener('click', async function() {
     scrollSwitchCheckbox.checked = scrollEnabled;
     debugLoggingCheckbox.checked = debugEnabled;
     hostnameToggle.checked = blacklistUseFullHostname;
+    keyboardShortcutCheckbox.checked = keyboardShortcutEnabled;
+    renderShortcutKeyBtn();
 
     // Send initial status to all tabs
     renderGlobalToggleState(autopipEnabled);
@@ -204,6 +254,8 @@ whitelistModeBtn.addEventListener('click', async function() {
     updateAllTabs('toggleDebugLogging', debugEnabled);
     updateAllTabs('updateBlacklist', null, blacklistedSites);
     updateAllTabs('updateListMode', null, undefined, { mode: listMode, whitelistedSites });
+    updateAllTabs('toggleKeyboardShortcut', keyboardShortcutEnabled);
+    updateAllTabs('updateShortcutKey', null, undefined, { key: keyboardShortcutKey, modifier: keyboardShortcutModifier });
     
     // Load current tab and update UI
     loadCurrentTab();
@@ -250,6 +302,66 @@ hostnameToggle.addEventListener('change', async function() {
         currentHostnameSpan.textContent = hostname;
         updateSiteActionBtn(hostname);
     }
+});
+
+// Keyboard Shortcut Checkbox
+keyboardShortcutCheckbox.addEventListener('change', async function() {
+    keyboardShortcutEnabled = keyboardShortcutCheckbox.checked;
+    await safeStorageSet({ keyboardShortcutEnabled });
+    updateAllTabs('toggleKeyboardShortcut', keyboardShortcutEnabled);
+    renderShortcutKeyBtn();
+});
+
+// Reset shortcut to default
+shortcutResetBtn.addEventListener('click', async function() {
+    keyboardShortcutKey = DEFAULT_SHORTCUT_KEY;
+    keyboardShortcutModifier = DEFAULT_SHORTCUT_MODIFIER;
+    await safeStorageSet({ keyboardShortcutKey, keyboardShortcutModifier });
+    updateAllTabs('updateShortcutKey', null, undefined, { key: keyboardShortcutKey, modifier: keyboardShortcutModifier });
+    renderShortcutKeyBtn();
+});
+
+// Keyboard Shortcut Key Recording
+shortcutKeyBtn.addEventListener('click', function() {
+    if (!keyboardShortcutEnabled) return;
+
+    shortcutKeyBtn.textContent = 'Press a key…';
+    shortcutKeyBtn.classList.add('recording');
+    shortcutKeyBtn.disabled = true;
+    shortcutResetBtn.style.visibility = 'hidden';
+
+    const PURE_MODIFIERS = ['Alt', 'Control', 'Shift', 'Meta', 'CapsLock', 'Tab', 'Escape'];
+
+    function captureKey(e) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (e.key === 'Escape') {
+            document.removeEventListener('keydown', captureKey, true);
+            shortcutKeyBtn.classList.remove('recording');
+            renderShortcutKeyBtn();
+            return;
+        }
+
+        if (PURE_MODIFIERS.includes(e.key)) return;
+
+        let modifier = '';
+        if (e.altKey)       modifier = 'alt';
+        else if (e.ctrlKey) modifier = 'ctrl';
+        else if (e.metaKey) modifier = 'meta';
+
+        keyboardShortcutKey = e.code; // physical key code, modifier-independent
+        keyboardShortcutModifier = modifier;
+
+        document.removeEventListener('keydown', captureKey, true);
+        shortcutKeyBtn.classList.remove('recording');
+        renderShortcutKeyBtn();
+
+        safeStorageSet({ keyboardShortcutKey, keyboardShortcutModifier });
+        updateAllTabs('updateShortcutKey', null, undefined, { key: keyboardShortcutKey, modifier: keyboardShortcutModifier });
+    }
+
+    document.addEventListener('keydown', captureKey, true);
 });
 
 // Site Action Button Event Listener

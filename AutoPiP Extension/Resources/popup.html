@@ -120,6 +120,17 @@
                 <label for="hostnameToggle">Use full hostname (including subdomain)</label>
                 <input type="checkbox" class="checkbox" id="hostnameToggle" checked aria-label="Use full hostname including subdomain for blacklist">
             </div>
+            <div class="setting">
+                <label for="keyboardShortcutCheckbox">Keyboard Shortcut</label>
+                <input type="checkbox" class="checkbox" id="keyboardShortcutCheckbox" aria-label="Enable keyboard shortcut to toggle PiP">
+            </div>
+            <div class="setting" id="shortcutKeySetting">
+                <div class="shortcut-label-group">
+                    <label>Shortcut Key</label>
+                    <button class="shortcut-reset-btn" id="shortcutResetBtn" type="button" aria-label="Reset shortcut to default" title="Reset to default (&#x2325;P)">&#x21BA;</button>
+                </div>
+                <button class="shortcut-key-btn" id="shortcutKeyBtn" type="button" aria-label="Configure shortcut key" disabled>&#x2325;P</button>
+            </div>
         </div>
     </div>
 
