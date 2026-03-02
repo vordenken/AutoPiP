@@ -1,13 +1,17 @@
-//Created by vordenken on 26.11.24
-//UpdateController.swift
+//
+//  UpdateController.swift
+//  AutoPiP
+//
+//  Created by vordenken on 26.11.24.
+//
 
 import Sparkle
 
 class UpdateController {
     private let updaterController: SPUStandardUpdaterController
-    
+
     init() {
-        // Initialisiere den Updater
+        // Initialize the updater
         updaterController = SPUStandardUpdaterController(
             startingUpdater: true,
             updaterDelegate: nil,
