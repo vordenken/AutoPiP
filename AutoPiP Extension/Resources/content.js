@@ -6,7 +6,7 @@ const CACHE_DURATION_MS = 1000; // Video selector cache duration in milliseconds
 const INTERSECTION_THRESHOLD = 0.1; // IntersectionObserver threshold (10% visibility)
 const DOM_READY_DELAY_MS = 500; // Delay before initializing IntersectionObserver
 
-let DEBUG_LOGGING = false; // Can be toggled via popup settings
+let DEBUG_LOGGING = false; // Toggle via extension popup Settings > Debug Logging
 
 // State variables
 let autopipEnabled = true;
@@ -433,10 +433,13 @@ function setupVideoObserver() {
     observedVideo = video;
 }
 
-// Helper function to check if current page is YouTube
+// Helper function to check if current page is YouTube (supports international domains)
 function isYouTubePage() {
     const hostname = window.location.hostname;
-    return ['youtube.com', 'www.youtube.com'].includes(hostname);
+    const parts = hostname.split('.');
+    // Match youtube.com, www.youtube.com, youtube.co.uk, etc.
+    return hostname.endsWith('youtube.com') ||
+           (parts.length >= 2 && parts[parts.length - 2] === 'youtube');
 }
 
 // Watch for DOM changes and invalidate video cache

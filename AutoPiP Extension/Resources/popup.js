@@ -475,7 +475,7 @@ async function updateAllTabs(command, enabled = null, sites = undefined, extra =
     // Batch all tab updates with Promise.allSettled for better performance
     const promises = tabs.map(tab => {
         const message = { command };
-        if (enabled !== null && enabled !== undefined) {
+        if (enabled != null) {
             message.enabled = enabled;
         }
         if (sites !== undefined) {
