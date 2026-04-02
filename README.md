@@ -53,6 +53,41 @@ A Safari extension that automatically enables Picture-in-Picture (PiP) mode for 
 
 > I wanted to add Chrome/Firefox support but Safari is the only browser that allows calling PiP without user-interaction - So unless this changes, AutoPiP will be Safari only
 
+## 🔨 Building & Releasing
+
+AutoPiP is built and released automatically via GitHub Actions.
+
+### Automatic Releases
+
+Push a version tag to trigger a build and GitHub release:
+
+```bash
+git tag v2.1.0
+git push origin v2.1.0
+```
+
+The workflow will archive the app, create `AutoPiP.zip`, and attach it to a new GitHub release.
+
+You can also trigger a build manually from the **Actions** tab using "Run workflow".
+
+### Code Signing (Optional)
+
+To sign the app with your Apple Developer certificate, add the following [repository secrets](https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions):
+
+| Secret | Description |
+|--------|-------------|
+| `BUILD_CERTIFICATE_BASE64` | Base64-encoded `.p12` certificate |
+| `P12_PASSWORD` | Password for the `.p12` file |
+
+**Export your certificate:**
+
+```bash
+# Export from Keychain Access as .p12, then encode:
+base64 -i certificate.p12 | pbcopy
+```
+
+Paste the result as the `BUILD_CERTIFICATE_BASE64` secret. Without these secrets, the app is built with ad-hoc signing.
+
 ## 🤝 Contributing
 
 As this is my first Swift/Xcode project, I welcome:

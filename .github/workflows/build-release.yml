@@ -1,0 +1,106 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Import signing certificate
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+        run: |
+          if [ -z "$BUILD_CERTIFICATE_BASE64" ]; then
+            echo "::warning::No signing certificate configured. Building with ad-hoc signing."
+            echo "SIGNING_AVAILABLE=false" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          CERTIFICATE_PATH="$RUNNER_TEMP/build_certificate.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
+
+          echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o "$CERTIFICATE_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          security import "$CERTIFICATE_PATH" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+
+          echo "SIGNING_AVAILABLE=true" >> "$GITHUB_ENV"
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+
+      - name: Resolve Swift packages
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project AutoPiP.xcodeproj \
+            -scheme AutoPiP
+
+      - name: Build archive
+        run: |
+          ARCHIVE_PATH="$RUNNER_TEMP/AutoPiP.xcarchive"
+
+          if [ "$SIGNING_AVAILABLE" = "true" ]; then
+            xcodebuild archive \
+              -project AutoPiP.xcodeproj \
+              -scheme AutoPiP \
+              -configuration Release \
+              -archivePath "$ARCHIVE_PATH"
+          else
+            xcodebuild archive \
+              -project AutoPiP.xcodeproj \
+              -scheme AutoPiP \
+              -configuration Release \
+              -archivePath "$ARCHIVE_PATH" \
+              CODE_SIGN_IDENTITY="-" \
+              CODE_SIGNING_REQUIRED=NO \
+              CODE_SIGNING_ALLOWED=NO \
+              DEVELOPMENT_TEAM=""
+          fi
+
+      - name: Prepare app for distribution
+        run: |
+          APP_PATH="$RUNNER_TEMP/AutoPiP.xcarchive/Products/Applications/AutoPiP.app"
+
+          if [ ! -d "$APP_PATH" ]; then
+            echo "::error::AutoPiP.app not found in archive"
+            exit 1
+          fi
+
+          ditto -c -k --keepParent "$APP_PATH" "$RUNNER_TEMP/AutoPiP.zip"
+          echo "Built AutoPiP.zip ($(du -h "$RUNNER_TEMP/AutoPiP.zip" | cut -f1))"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoPiP
+          path: ${{ runner.temp }}/AutoPiP.zip
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ runner.temp }}/AutoPiP.zip
+          generate_release_notes: true
+
+      - name: Cleanup keychain
+        if: always()
+        run: |
+          if [ -n "$KEYCHAIN_PATH" ] && [ -f "$KEYCHAIN_PATH" ]; then
+            security delete-keychain "$KEYCHAIN_PATH" || true
+          fi
