@@ -2,28 +2,66 @@ name: Build and Release
 
 on:
   push:
-    tags:
-      - "v*"
+    branches: [main, develop]
+    paths: [semver.txt]
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  build:
+  build-and-release:
     runs-on: macos-15
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
+      - name: Read version from semver.txt
+        id: version
+        run: |
+          VERSION=$(tr -d '[:space:]' < semver.txt)
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Invalid semver in semver.txt: '$VERSION'"
+            exit 1
+          fi
+
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            TAG="v${VERSION}"
+            PRERELEASE=false
+            CHANNEL=stable
+          else
+            TAG="v${VERSION}-beta"
+            PRERELEASE=true
+            CHANNEL=beta
+          fi
+
+          echo "version=$VERSION"  >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG"          >> "$GITHUB_OUTPUT"
+          echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
+          echo "channel=$CHANNEL"  >> "$GITHUB_OUTPUT"
+          echo "### $CHANNEL release — $TAG" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Check for existing tag
+        id: check_tag
+        run: |
+          if git rev-parse "refs/tags/${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
+            echo "::warning::Tag ${{ steps.version.outputs.tag }} already exists — skipping release."
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ── Signing ────────────────────────────────────────────────
       - name: Import signing certificate
         env:
           BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
           P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
         run: |
           if [ -z "$BUILD_CERTIFICATE_BASE64" ]; then
-            echo "::warning::No signing certificate configured. Building with ad-hoc signing."
+            echo "::warning::No signing certificate configured — building with ad-hoc signing."
             echo "SIGNING_AVAILABLE=false" >> "$GITHUB_ENV"
             exit 0
           fi
@@ -45,13 +83,26 @@ jobs:
           echo "SIGNING_AVAILABLE=true" >> "$GITHUB_ENV"
           echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
 
+      # ── Build ──────────────────────────────────────────────────
+      - name: Set version in Xcode project
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          BUILD="${{ github.run_number }}"
+
+          sed -i '' "s/MARKETING_VERSION = .*;/MARKETING_VERSION = ${VERSION};/" \
+            AutoPiP.xcodeproj/project.pbxproj
+          sed -i '' "s/CURRENT_PROJECT_VERSION = .*;/CURRENT_PROJECT_VERSION = ${BUILD};/" \
+            AutoPiP.xcodeproj/project.pbxproj
+
+          echo "MARKETING_VERSION=$VERSION  CURRENT_PROJECT_VERSION=$BUILD"
+
       - name: Resolve Swift packages
         run: |
           xcodebuild -resolvePackageDependencies \
             -project AutoPiP.xcodeproj \
             -scheme AutoPiP
 
-      - name: Build archive
+      - name: Archive
         run: |
           ARCHIVE_PATH="$RUNNER_TEMP/AutoPiP.xcarchive"
 
@@ -73,7 +124,7 @@ jobs:
               DEVELOPMENT_TEAM=""
           fi
 
-      - name: Prepare app for distribution
+      - name: Prepare zip
         run: |
           APP_PATH="$RUNNER_TEMP/AutoPiP.xcarchive/Products/Applications/AutoPiP.app"
 
@@ -83,7 +134,7 @@ jobs:
           fi
 
           ditto -c -k --keepParent "$APP_PATH" "$RUNNER_TEMP/AutoPiP.zip"
-          echo "Built AutoPiP.zip ($(du -h "$RUNNER_TEMP/AutoPiP.zip" | cut -f1))"
+          echo "AutoPiP.zip — $(du -h "$RUNNER_TEMP/AutoPiP.zip" | cut -f1)"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
@@ -91,13 +142,102 @@ jobs:
           name: AutoPiP
           path: ${{ runner.temp }}/AutoPiP.zip
 
-      - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
+      # ── Release ────────────────────────────────────────────────
+      - name: Create tag and GitHub Release
+        if: steps.check_tag.outputs.exists == 'false'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
           files: ${{ runner.temp }}/AutoPiP.zip
+          prerelease: ${{ steps.version.outputs.prerelease == 'true' }}
           generate_release_notes: true
 
+      # ── Sparkle ────────────────────────────────────────────────
+      - name: Update Sparkle appcast
+        if: steps.check_tag.outputs.exists == 'false'
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          TAG="${{ steps.version.outputs.tag }}"
+          CHANNEL="${{ steps.version.outputs.channel }}"
+          ZIP_PATH="$RUNNER_TEMP/AutoPiP.zip"
+
+          FILE_LENGTH=$(stat -f%z "$ZIP_PATH")
+
+          # ── Sparkle EdDSA signature (optional) ──
+          SIG_ATTR=""
+          if [ -n "$SPARKLE_PRIVATE_KEY" ]; then
+            curl -sL "https://github.com/sparkle-project/Sparkle/releases/download/2.9.0/Sparkle-2.9.0.tar.xz" \
+              -o "$RUNNER_TEMP/sparkle.tar.xz"
+            mkdir -p "$RUNNER_TEMP/sparkle"
+            tar -xJf "$RUNNER_TEMP/sparkle.tar.xz" -C "$RUNNER_TEMP/sparkle"
+
+            echo -n "$SPARKLE_PRIVATE_KEY" > "$RUNNER_TEMP/sparkle_key"
+            SIGN_OUTPUT=$("$RUNNER_TEMP/sparkle/bin/sign_update" "$ZIP_PATH" -f "$RUNNER_TEMP/sparkle_key")
+            SIGNATURE=$(echo "$SIGN_OUTPUT" | grep -oE 'sparkle:edSignature="[^"]+"' | cut -d'"' -f2)
+            rm -f "$RUNNER_TEMP/sparkle_key"
+
+            SIG_ATTR=$'\n'"                sparkle:edSignature=\"${SIGNATURE}\""
+            echo "Sparkle EdDSA signature generated"
+          else
+            echo "::warning::SPARKLE_PRIVATE_KEY not set — appcast entry will have no signature."
+          fi
+
+          # ── Channel element (beta only) ──
+          CHANNEL_EL=""
+          if [ "$CHANNEL" = "beta" ]; then
+            CHANNEL_EL=$'\n'"            <sparkle:channel>beta</sparkle:channel>"
+          fi
+
+          DOWNLOAD_URL="https://github.com/vordenken/autopip/releases/download/${TAG}/AutoPiP.zip"
+          PUB_DATE=$(date -u '+%a, %d %b %Y %H:%M:%S %z')
+
+          # ── Build <item> block ──
+          read -r -d '' NEW_ITEM <<EOF || true
+          <item>
+              <title>Version ${VERSION}</title>${CHANNEL_EL}
+              <pubDate>${PUB_DATE}</pubDate>
+              <enclosure
+                  url="${DOWNLOAD_URL}"
+                  sparkle:version="${VERSION}"${SIG_ATTR}
+                  length="${FILE_LENGTH}"
+                  type="application/octet-stream"/>
+          </item>
+          EOF
+
+          # Insert after <title>AutoPiP Updates</title>
+          awk -v item="$NEW_ITEM" \
+            '/<title>AutoPiP Updates<\/title>/{print; print item; next} {print}' \
+            appcast.xml > "$RUNNER_TEMP/appcast_new.xml"
+
+          mv "$RUNNER_TEMP/appcast_new.xml" appcast.xml
+          echo "appcast.xml updated — $CHANNEL $VERSION"
+
+      - name: Push appcast to main
+        if: steps.check_tag.outputs.exists == 'false'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Save updated appcast
+          cp appcast.xml "$RUNNER_TEMP/appcast.xml"
+
+          # Reset local changes and switch to main if needed
+          git checkout -- .
+          if [ "${{ github.ref_name }}" != "main" ]; then
+            git fetch origin main
+            git checkout main
+          fi
+
+          cp "$RUNNER_TEMP/appcast.xml" appcast.xml
+          git add appcast.xml
+          git diff --cached --quiet && echo "appcast.xml unchanged" && exit 0
+          git commit -m "chore: update appcast for ${{ steps.version.outputs.tag }}"
+          git push origin main
+
+      # ── Cleanup ────────────────────────────────────────────────
       - name: Cleanup keychain
         if: always()
         run: |
