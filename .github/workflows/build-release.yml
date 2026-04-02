@@ -233,9 +233,12 @@ jobs:
 
           cp "$RUNNER_TEMP/appcast.xml" appcast.xml
           git add appcast.xml
-          git diff --cached --quiet && echo "appcast.xml unchanged" && exit 0
-          git commit -m "chore: update appcast for ${{ steps.version.outputs.tag }}"
-          git push origin main
+          if git diff --cached --quiet; then
+            echo "appcast.xml unchanged — nothing to push"
+          else
+            git commit -m "chore: update appcast for ${{ steps.version.outputs.tag }}"
+            git push origin main
+          fi
 
       # ── Cleanup ────────────────────────────────────────────────
       - name: Cleanup keychain
