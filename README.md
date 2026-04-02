@@ -67,7 +67,7 @@ AutoPiP is built and released automatically via GitHub Actions. The version in *
 The workflow automatically:
 - Sets the version in the Xcode project
 - Builds and archives the app
-- Creates a git tag and GitHub Release with `AutoPiP.zip`
+- Creates a git tag and GitHub Release with `AutoPiP.dmg`
 - Updates `appcast.xml` on `main` for Sparkle auto-updates
 
 You can also trigger a build manually from the **Actions** tab using "Run workflow".

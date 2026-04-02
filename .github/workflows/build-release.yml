@@ -124,7 +124,7 @@ jobs:
               DEVELOPMENT_TEAM=""
           fi
 
-      - name: Prepare zip
+      - name: Create DMG
         run: |
           APP_PATH="$RUNNER_TEMP/AutoPiP.xcarchive/Products/Applications/AutoPiP.app"
 
@@ -133,28 +133,22 @@ jobs:
             exit 1
           fi
 
-          ditto -c -k --keepParent "$APP_PATH" "$RUNNER_TEMP/AutoPiP.zip"
-          echo "AutoPiP.zip — $(du -h "$RUNNER_TEMP/AutoPiP.zip" | cut -f1)"
+          brew install create-dmg
 
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: AutoPiP
-          path: ${{ runner.temp }}/AutoPiP.zip
+          create-dmg \
+            --volname "AutoPiP" \
+            --window-pos 200 120 \
+            --window-size 600 400 \
+            --icon-size 100 \
+            --icon "AutoPiP.app" 175 190 \
+            --app-drop-link 425 190 \
+            "$RUNNER_TEMP/AutoPiP.dmg" \
+            "$APP_PATH"
 
-      # ── Release ────────────────────────────────────────────────
-      - name: Create tag and GitHub Release
-        if: steps.check_tag.outputs.exists == 'false'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.version.outputs.tag }}
-          name: ${{ steps.version.outputs.tag }}
-          files: ${{ runner.temp }}/AutoPiP.zip
-          prerelease: ${{ steps.version.outputs.prerelease == 'true' }}
-          generate_release_notes: true
+          echo "AutoPiP.dmg — $(du -h "$RUNNER_TEMP/AutoPiP.dmg" | cut -f1)"
 
       # ── Sparkle ────────────────────────────────────────────────
-      - name: Update Sparkle appcast
+      - name: Sign DMG and prepare Sparkle appcast
         if: steps.check_tag.outputs.exists == 'false'
         env:
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
@@ -162,9 +156,9 @@ jobs:
           VERSION="${{ steps.version.outputs.version }}"
           TAG="${{ steps.version.outputs.tag }}"
           CHANNEL="${{ steps.version.outputs.channel }}"
-          ZIP_PATH="$RUNNER_TEMP/AutoPiP.zip"
+          DMG_PATH="$RUNNER_TEMP/AutoPiP.dmg"
 
-          FILE_LENGTH=$(stat -f%z "$ZIP_PATH")
+          FILE_LENGTH=$(stat -f%z "$DMG_PATH")
 
           # ── Sparkle EdDSA signature (optional) ──
           SIG_ATTR=""
@@ -175,7 +169,7 @@ jobs:
             tar -xJf "$RUNNER_TEMP/sparkle.tar.xz" -C "$RUNNER_TEMP/sparkle"
 
             echo -n "$SPARKLE_PRIVATE_KEY" > "$RUNNER_TEMP/sparkle_key"
-            SIGN_OUTPUT=$("$RUNNER_TEMP/sparkle/bin/sign_update" "$ZIP_PATH" -f "$RUNNER_TEMP/sparkle_key")
+            SIGN_OUTPUT=$("$RUNNER_TEMP/sparkle/bin/sign_update" "$DMG_PATH" -f "$RUNNER_TEMP/sparkle_key")
             SIGNATURE=$(echo "$SIGN_OUTPUT" | grep -oE 'sparkle:edSignature="[^"]+"' | cut -d'"' -f2)
             rm -f "$RUNNER_TEMP/sparkle_key"
 
@@ -191,7 +185,7 @@ jobs:
             CHANNEL_EL=$'\n'"            <sparkle:channel>beta</sparkle:channel>"
           fi
 
-          DOWNLOAD_URL="https://github.com/vordenken/autopip/releases/download/${TAG}/AutoPiP.zip"
+          DOWNLOAD_URL="https://github.com/vordenken/autopip/releases/download/${TAG}/AutoPiP.dmg"
           PUB_DATE=$(date -u '+%a, %d %b %Y %H:%M:%S %z')
 
           # ── Build <item> block ──
@@ -214,6 +208,23 @@ jobs:
 
           mv "$RUNNER_TEMP/appcast_new.xml" appcast.xml
           echo "appcast.xml updated — $CHANNEL $VERSION"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoPiP
+          path: ${{ runner.temp }}/AutoPiP.dmg
+
+      # ── Release ────────────────────────────────────────────────
+      - name: Create tag and GitHub Release
+        if: steps.check_tag.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          files: ${{ runner.temp }}/AutoPiP.dmg
+          prerelease: ${{ steps.version.outputs.prerelease == 'true' }}
+          generate_release_notes: true
 
       - name: Push appcast to main
         if: steps.check_tag.outputs.exists == 'false'
