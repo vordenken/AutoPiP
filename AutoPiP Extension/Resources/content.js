@@ -479,6 +479,8 @@ function attachPiPEventListeners(video) {
     // When PiP is exited (e.g. user clicks the native close button on the PiP
     // window), WebKit pauses the video as a side effect.  Resume playback
     // automatically unless the user intentionally paused the video first.
+    // Note: JavaScript's single-threaded event loop ensures pause/play/mode-change
+    // events are processed sequentially, so userPausedInPiP is always consistent.
     video.addEventListener('webkitpresentationmodechanged', () => {
         debugLog('Presentation mode changed to:', video.webkitPresentationMode);
 
@@ -489,12 +491,9 @@ function attachPiPEventListeners(video) {
                     console.error('[AutoPiP] Failed to resume playback after PiP close:', error);
                 });
             }
-            userPausedInPiP = false;
-        } else {
-            // Just entered PiP – reset the flag so a prior pause doesn't
-            // prevent resuming on the next exit.
-            userPausedInPiP = false;
         }
+        // Reset on both enter and exit so subsequent PiP sessions start clean
+        userPausedInPiP = false;
     });
 
     pipListenerVideos.add(video);
