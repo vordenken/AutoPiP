@@ -447,6 +447,52 @@ new MutationObserver(() => {
     childList: true
 });
 
+// Track which video elements already have PiP event listeners attached
+const pipListenerVideos = new WeakSet();
+
+/**
+ * Attach event listeners to a video element to resume playback when the
+ * PiP window is closed via the native macOS close button.
+ * @param {HTMLVideoElement} video - Video element to attach listeners to
+ */
+function attachPiPEventListeners(video) {
+    if (pipListenerVideos.has(video)) return;
+
+    let userPausedInPiP = false;
+
+    // Track if the user explicitly paused the video while in PiP mode
+    video.addEventListener('pause', () => {
+        if (isPiPActive(video)) {
+            userPausedInPiP = true;
+            debugLog('User paused video while in PiP mode');
+        }
+    });
+
+    // When PiP is exited (e.g. user clicks the native close button on the PiP
+    // window), WebKit pauses the video as a side effect.  Resume playback
+    // automatically unless the user intentionally paused the video first.
+    video.addEventListener('webkitpresentationmodechanged', () => {
+        debugLog('Presentation mode changed to:', video.webkitPresentationMode);
+
+        if (video.webkitPresentationMode !== 'picture-in-picture') {
+            if (video.paused && !userPausedInPiP) {
+                debugLog('PiP window closed, resuming playback');
+                video.play().catch(error => {
+                    console.error('[AutoPiP] Failed to resume playback after PiP close:', error);
+                });
+            }
+            userPausedInPiP = false;
+        } else {
+            // Just entered PiP – reset the flag so a prior pause doesn't
+            // prevent resuming on the next exit.
+            userPausedInPiP = false;
+        }
+    });
+
+    pipListenerVideos.add(video);
+    debugLog('PiP event listeners attached to video element');
+}
+
 // Video selector caching with invalidation
 let cachedVideo = null;
 let cacheTimestamp = 0;
@@ -473,6 +519,7 @@ function getVideo() {
         if (video) {
             cachedVideo = video;
             cacheTimestamp = now;
+            attachPiPEventListeners(video);
             return video;
         }
     }
