@@ -468,6 +468,14 @@ function attachPiPEventListeners(video) {
         }
     });
 
+    // Clear the flag when the user resumes playback while still in PiP mode
+    video.addEventListener('play', () => {
+        if (isPiPActive(video)) {
+            userPausedInPiP = false;
+            debugLog('User resumed video while in PiP mode');
+        }
+    });
+
     // When PiP is exited (e.g. user clicks the native close button on the PiP
     // window), WebKit pauses the video as a side effect.  Resume playback
     // automatically unless the user intentionally paused the video first.
