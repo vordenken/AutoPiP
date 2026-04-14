@@ -3,17 +3,119 @@
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'">
-
     <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-
     <link rel="stylesheet" href="../Style.css">
     <script src="../Script.js" defer></script>
 </head>
 <body>
-    <img src="../Icon.png" width="128" height="128" alt="AutoPiP Icon">
-    <p class="state-unknown">You can turn on AutoPiP’s extension in Safari Extensions preferences.</p>
-    <p class="state-on">AutoPiP’s extension is currently on. You can turn it off in Safari Extensions preferences.</p>
-    <p class="state-off">AutoPiP’s extension is currently off. You can turn it on in Safari Extensions preferences.</p>
-    <button class="open-preferences">Quit and Open Safari Extensions Preferences…</button>
+
+    <!-- ===== ONBOARDING PAGE 1: Welcome ===== -->
+    <div class="page hidden" id="page-welcome">
+        <div class="page-content centered">
+            <img src="../Icon.png" width="96" height="96" alt="AutoPiP Icon">
+            <h1>Welcome to AutoPiP</h1>
+            <p class="subtitle">Automatically enables Picture-in-Picture when you switch tabs or windows in Safari.</p>
+            <div class="support-links">
+                <a href="https://github.com/vordenken/AutoPiP" id="link-github">GitHub</a>
+                <span class="dot">&#x00B7;</span>
+                <a href="https://ko-fi.com/vordenken" id="link-kofi">Ko-fi</a>
+                <span class="dot">&#x00B7;</span>
+                <a href="https://www.buymeacoffee.com/vordenken" id="link-bmc">Buy Me a Coffee</a>
+            </div>
+        </div>
+        <div class="page-footer">
+            <span class="version-label" id="version-label"></span>
+            <button id="welcome-next" class="btn primary">Continue</button>
+        </div>
+    </div>
+
+    <!-- ===== ONBOARDING PAGE 2: Features ===== -->
+    <div class="page hidden" id="page-features">
+        <div class="page-content">
+            <h2>Features</h2>
+            <p class="hint">Configure these anytime in the AutoPiP Safari toolbar popup.</p>
+            <div class="feature-list">
+                <div class="feature-item">
+                    <strong>Automatic PiP</strong>
+                    <span>Switch tabs or windows &#x2013; your video continues in PiP.</span>
+                </div>
+                <div class="feature-item">
+                    <strong>Scroll PiP</strong>
+                    <span>Scroll past a YouTube video to trigger PiP automatically.</span>
+                </div>
+                <div class="feature-item">
+                    <strong>Keyboard Shortcut</strong>
+                    <span>Press &#x2325;P to toggle PiP at any time (customizable).</span>
+                </div>
+                <div class="feature-item">
+                    <strong>Site Control</strong>
+                    <span>Blacklist mode (default) works on all sites. Switch to Whitelist to allow only specific ones.</span>
+                </div>
+            </div>
+        </div>
+        <div class="page-footer">
+            <button id="features-back" class="btn">Back</button>
+            <button id="features-next" class="btn primary">Continue</button>
+        </div>
+    </div>
+
+    <!-- ===== ONBOARDING PAGE 3: Updates + Done ===== -->
+    <div class="page hidden" id="page-updates">
+        <div class="page-content">
+            <h2>Updates</h2>
+            <div class="settings-list">
+                <div class="setting-row">
+                    <span>Automatically check for updates</span>
+                    <input type="checkbox" class="toggle" id="onb-auto-check" checked>
+                </div>
+                <div class="setting-row sub">
+                    <span>Automatically download updates</span>
+                    <input type="checkbox" class="toggle" id="onb-auto-download">
+                </div>
+                <div class="setting-row">
+                    <span>Include beta updates</span>
+                    <input type="checkbox" class="toggle" id="onb-beta">
+                </div>
+            </div>
+            <button id="onb-check-updates" class="btn">Check for Updates Now</button>
+            <div class="separator"></div>
+            <p class="hint permission-hint">When Safari opens, enable the AutoPiP extension and allow it access to <strong>all websites</strong>.</p>
+        </div>
+        <div class="page-footer">
+            <button id="updates-back" class="btn">Back</button>
+            <button id="updates-done" class="btn primary">Done &#x2013; Open Safari</button>
+        </div>
+    </div>
+
+    <!-- ===== MAIN VIEW (after onboarding) ===== -->
+    <div class="page hidden" id="page-main">
+        <div class="page-content">
+            <img src="../Icon.png" width="64" height="64" alt="AutoPiP Icon">
+            <p class="state-info state-unknown">You can turn on AutoPiP&#x2019;s extension in Safari Extensions preferences.</p>
+            <p class="state-info state-on">AutoPiP&#x2019;s extension is currently on. You can turn it off in Safari Extensions preferences.</p>
+            <p class="state-info state-off">AutoPiP&#x2019;s extension is currently off. You can turn it on in Safari Extensions preferences.</p>
+            <div class="separator"></div>
+            <div class="settings-list">
+                <div class="setting-row">
+                    <span>Automatically check for updates</span>
+                    <input type="checkbox" class="toggle" id="auto-check-toggle">
+                </div>
+                <div class="setting-row sub">
+                    <span>Automatically download updates</span>
+                    <input type="checkbox" class="toggle" id="auto-download-toggle">
+                </div>
+                <div class="setting-row">
+                    <span>Include beta updates</span>
+                    <input type="checkbox" class="toggle" id="beta-toggle">
+                </div>
+            </div>
+            <button id="check-updates-btn" class="btn">Check for Updates Now</button>
+        </div>
+        <div class="page-footer">
+            <span class="version-label" id="main-version-label"></span>
+            <button class="open-preferences btn primary">Open Safari Preferences&#x2026;</button>
+        </div>
+    </div>
+
 </body>
 </html>

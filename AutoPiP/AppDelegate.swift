@@ -10,7 +10,7 @@ import Cocoa
 @main
 class AppDelegate: NSObject, NSApplicationDelegate {
     
-    private let updateController = UpdateController()
+    let updateController = UpdateController()
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupMenu()

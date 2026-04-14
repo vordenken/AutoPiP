@@ -1,0 +1,377 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [main, 'feature/*']
+    paths:
+      [semver.txt]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  build-and-release:
+    runs-on: macos-15
+
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        if: vars.APP_ID != ''
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token || github.token }}
+
+      - name: Read version from semver.txt
+        id: version
+        run: |
+          VERSION=$(tr -d '[:space:]' < semver.txt)
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Invalid semver in semver.txt: '$VERSION'"
+            exit 1
+          fi
+
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            TAG="v${VERSION}"
+            PRERELEASE=false
+            CHANNEL=stable
+          else
+            TAG="v${VERSION}-beta"
+            PRERELEASE=true
+            CHANNEL=beta
+          fi
+
+          echo "version=$VERSION"  >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG"          >> "$GITHUB_OUTPUT"
+          echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
+          echo "channel=$CHANNEL"  >> "$GITHUB_OUTPUT"
+          echo "### $CHANNEL release — $TAG" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Check for existing tag
+        id: check_tag
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          CHANNEL="${{ steps.version.outputs.channel }}"
+
+          if git rev-parse "refs/tags/${TAG}" >/dev/null 2>&1; then
+            if [ "$CHANNEL" = "stable" ]; then
+              echo "::error::Stable release ${TAG} already exists — bump the version in semver.txt to create a new release."
+              exit 1
+            fi
+            echo "::warning::Beta tag ${TAG} already exists — release will be overwritten."
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ── Signing ────────────────────────────────────────────────
+      - name: Import signing certificate
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+        run: |
+          if [ -z "$BUILD_CERTIFICATE_BASE64" ]; then
+            echo "::warning::No signing certificate configured — building with ad-hoc signing."
+            echo "SIGNING_AVAILABLE=false" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          CERTIFICATE_PATH="$RUNNER_TEMP/build_certificate.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
+
+          echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o "$CERTIFICATE_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          security import "$CERTIFICATE_PATH" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+
+          echo "SIGNING_AVAILABLE=true" >> "$GITHUB_ENV"
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+
+      # ── Build ──────────────────────────────────────────────────
+      - name: Set version in Xcode project
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          BUILD=$(( ${{ github.run_number }} + 10 ))
+
+          sed -i '' "s/MARKETING_VERSION = .*;/MARKETING_VERSION = ${VERSION};/" \
+            AutoPiP.xcodeproj/project.pbxproj
+          sed -i '' "s/CURRENT_PROJECT_VERSION = .*;/CURRENT_PROJECT_VERSION = ${BUILD};/" \
+            AutoPiP.xcodeproj/project.pbxproj
+
+          sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"${VERSION}\"/" \
+            "AutoPiP Extension/Resources/manifest.json"
+
+          echo "MARKETING_VERSION=$VERSION  CURRENT_PROJECT_VERSION=$BUILD"
+
+      - name: Resolve Swift packages
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project AutoPiP.xcodeproj \
+            -scheme AutoPiP
+
+      - name: Archive
+        run: |
+          ARCHIVE_PATH="$RUNNER_TEMP/AutoPiP.xcarchive"
+
+          if [ "$SIGNING_AVAILABLE" = "true" ]; then
+            xcodebuild archive \
+              -project AutoPiP.xcodeproj \
+              -scheme AutoPiP \
+              -configuration Release \
+              -archivePath "$ARCHIVE_PATH"
+          else
+            xcodebuild archive \
+              -project AutoPiP.xcodeproj \
+              -scheme AutoPiP \
+              -configuration Release \
+              -archivePath "$ARCHIVE_PATH" \
+              CODE_SIGN_IDENTITY="-" \
+              CODE_SIGNING_REQUIRED=NO \
+              CODE_SIGNING_ALLOWED=NO \
+              DEVELOPMENT_TEAM=""
+          fi
+
+      - name: Create DMG
+        run: |
+          APP_PATH="$RUNNER_TEMP/AutoPiP.xcarchive/Products/Applications/AutoPiP.app"
+
+          if [ ! -d "$APP_PATH" ]; then
+            echo "::error::AutoPiP.app not found in archive"
+            exit 1
+          fi
+
+          brew install create-dmg
+
+          create-dmg \
+            --volname "AutoPiP" \
+            --window-pos 200 120 \
+            --window-size 600 400 \
+            --icon-size 100 \
+            --icon "AutoPiP.app" 175 190 \
+            --app-drop-link 425 190 \
+            "$RUNNER_TEMP/AutoPiP.dmg" \
+            "$APP_PATH"
+
+          echo "AutoPiP.dmg — $(du -h "$RUNNER_TEMP/AutoPiP.dmg" | cut -f1)"
+
+      # ── Sparkle ────────────────────────────────────────────────
+      - name: Sign DMG and prepare Sparkle appcast
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          BUILD=$(( ${{ github.run_number }} + 10 ))
+          TAG="${{ steps.version.outputs.tag }}"
+          CHANNEL="${{ steps.version.outputs.channel }}"
+          DMG_PATH="$RUNNER_TEMP/AutoPiP.dmg"
+
+          FILE_LENGTH=$(stat -f%z "$DMG_PATH")
+          echo "DMG size: $FILE_LENGTH bytes"
+
+          # ── Sparkle EdDSA signature (optional) ──
+          SIG_ATTR=""
+          if [ -n "$SPARKLE_PRIVATE_KEY" ]; then
+            echo "Downloading Sparkle tools…"
+            curl -fSL \
+              "https://github.com/sparkle-project/Sparkle/releases/download/2.9.1/Sparkle-2.9.1.tar.xz" \
+              -o "$RUNNER_TEMP/sparkle.tar.xz"
+            mkdir -p "$RUNNER_TEMP/sparkle"
+            tar -xJf "$RUNNER_TEMP/sparkle.tar.xz" -C "$RUNNER_TEMP/sparkle"
+
+            SIGN_TOOL="$RUNNER_TEMP/sparkle/bin/sign_update"
+            if [ ! -x "$SIGN_TOOL" ]; then
+              echo "::error::sign_update not found or not executable at $SIGN_TOOL"
+              exit 1
+            fi
+
+            echo "Signing DMG with Sparkle EdDSA…"
+            set +e
+            SIGN_OUTPUT=$(echo "$SPARKLE_PRIVATE_KEY" | "$SIGN_TOOL" "$DMG_PATH" --ed-key-file -)
+            SIGN_RC=$?
+            set -e
+
+            if [ $SIGN_RC -ne 0 ]; then
+              echo "::warning::sign_update exited with code $SIGN_RC — output was:"
+              echo "$SIGN_OUTPUT"
+              echo "Continuing without Sparkle signature."
+            else
+              SIGNATURE=$(echo "$SIGN_OUTPUT" | grep -oE 'sparkle:edSignature="[^"]+"' | cut -d'"' -f2)
+              if [ -n "$SIGNATURE" ]; then
+                SIG_ATTR=$'\n'"            sparkle:edSignature=\"${SIGNATURE}\""
+                echo "✅ Sparkle EdDSA signature generated"
+              else
+                echo "::warning::sign_update succeeded but no edSignature found in output:"
+                echo "$SIGN_OUTPUT"
+                echo "Continuing without Sparkle signature."
+              fi
+            fi
+          else
+            echo "::warning::SPARKLE_PRIVATE_KEY not set — appcast entry will have no signature."
+          fi
+
+          # ── Channel element (beta only) ──
+          CHANNEL_EL=""
+          if [ "$CHANNEL" = "beta" ]; then
+            CHANNEL_EL=$'\n'"            <sparkle:channel>beta</sparkle:channel>"
+          fi
+
+          DOWNLOAD_URL="https://github.com/vordenken/AutoPiP/releases/download/${TAG}/AutoPiP.dmg"
+          PUB_DATE=$(date -u '+%a, %d %b %Y %H:%M:%S %z')
+
+          # ── Build <item> block and insert into appcast ──
+          ITEM_FILE="$RUNNER_TEMP/appcast_item.xml"
+          cat > "$ITEM_FILE" <<ITEM_EOF
+          <item>
+              <title>Version ${VERSION}</title>${CHANNEL_EL}
+              <pubDate>${PUB_DATE}</pubDate>
+              <enclosure
+                  url="${DOWNLOAD_URL}"
+                  sparkle:version="${BUILD}"
+                  sparkle:shortVersionString="${VERSION}"${SIG_ATTR}
+                  length="${FILE_LENGTH}"
+                  type="application/octet-stream"/>
+          </item>
+          ITEM_EOF
+
+          # Remove any existing appcast entry for the same version (prevents duplicates on beta re-releases)
+          awk -v ver="$VERSION" '
+            /<item>/ { buf = $0; inside = 1; next }
+            inside {
+              buf = buf ORS $0
+              if (/<\/item>/) {
+                inside = 0
+                if (buf !~ "sparkle:shortVersionString=\"" ver "\"") print buf
+                buf = ""
+              }
+              next
+            }
+            { print }
+          ' appcast.xml > "$RUNNER_TEMP/appcast_deduped.xml"
+          mv "$RUNNER_TEMP/appcast_deduped.xml" appcast.xml
+
+          # Insert the item block after <title>AutoPiP Updates</title>
+          sed -i '' "/<title>AutoPiP Updates<\/title>/r ${ITEM_FILE}" appcast.xml
+          echo "appcast.xml updated — $CHANNEL $VERSION"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: AutoPiP
+          path: ${{ runner.temp }}/AutoPiP.dmg
+
+      # ── Release ────────────────────────────────────────────────
+      - name: Create tag and GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          files: ${{ runner.temp }}/AutoPiP.dmg
+          prerelease: ${{ steps.version.outputs.prerelease == 'true' }}
+          generate_release_notes: true
+          token: ${{ steps.app-token.outputs.token || github.token }}
+          body: |
+            ## Important Note
+
+            This extension is currently not notarized by Apple. You'll need to bypass macOS security settings to initially install it. Updating works through Sparkle and doesn't need these steps again!
+
+            ### Installation Steps
+
+            1. Download `AutoPiP.dmg` file from the releases page and open it
+            2. When trying to open `AutoPiP.dmg`, macOS will show a security warning
+            3. To bypass this:
+                - Open System Settings
+                - Go to Privacy & Security
+                - Scroll down and click "Open Anyway"
+            4. Open `AutoPiP.dmg` again
+            5. Copy the `.app` to your Applications folder
+            6. When trying to open the app, macOS will show a security warning
+            7. To bypass this:
+                - Open System Settings
+                - Go to Privacy & Security
+                - Scroll down and click "Open Anyway"
+            8. Open `AutoPiP.app` again
+            9. Follow the instructions
+            10. Allow the requested permissions when prompted
+
+      # ── Push appcast ────────────────────────────────────────────
+      - name: Push appcast to working branch and main
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          WORKING_BRANCH="${{ github.ref_name }}"
+          TAG="${{ steps.version.outputs.tag }}"
+
+          # Save updated appcast
+          cp appcast.xml "$RUNNER_TEMP/appcast.xml"
+          git checkout -- .
+
+          push_appcast() {
+            local branch="$1"
+            git checkout "$branch"
+            cp "$RUNNER_TEMP/appcast.xml" appcast.xml
+            git add appcast.xml
+            if git diff --cached --quiet; then
+              echo "appcast.xml unchanged on $branch — nothing to push"
+              return 0
+            fi
+            git commit -m "chore: update appcast for ${TAG}"
+
+            set +e
+            PUSH_ERR=$(git push origin "$branch" 2>&1)
+            PUSH_RC=$?
+            set -e
+
+            if [ $PUSH_RC -eq 0 ]; then
+              echo "✅ appcast.xml pushed to $branch"
+              return 0
+            fi
+
+            echo "::warning::Direct push to $branch failed — $PUSH_ERR"
+            echo "Creating pull request instead…"
+
+            PR_BRANCH="chore/appcast-${TAG}-${branch}"
+            git checkout -B "$PR_BRANCH"
+            git push -f origin "$PR_BRANCH"
+            gh pr create \
+              --base "$branch" \
+              --head "$PR_BRANCH" \
+              --title "chore: update appcast for ${TAG}" \
+              --body "Automated appcast update from CI. Direct push to \`$branch\` was blocked by branch protection. Please merge to complete the release." \
+              || echo "::warning::PR may already exist for this appcast update."
+
+            echo "✅ Appcast PR created for $branch"
+          }
+
+          # Always push to the triggering branch first
+          push_appcast "$WORKING_BRANCH"
+
+          # Also push to main if the triggering branch is not main
+          if [ "$WORKING_BRANCH" != "main" ]; then
+            git fetch origin main
+            push_appcast "main"
+          fi
+
+      # ── Cleanup ────────────────────────────────────────────────
+      - name: Cleanup keychain
+        if: always()
+        run: |
+          if [ -n "$KEYCHAIN_PATH" ] && [ -f "$KEYCHAIN_PATH" ]; then
+            security delete-keychain "$KEYCHAIN_PATH" || true
+          fi
