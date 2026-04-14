@@ -2,6 +2,17 @@
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
     <channel>
         <title>AutoPiP Updates</title>
+<item>
+    <title>Version 2.1.0</title>
+            <sparkle:channel>beta</sparkle:channel>
+    <pubDate>Tue, 14 Apr 2026 20:16:38 +0000</pubDate>
+    <enclosure
+        url="https://github.com/vordenken/AutoPiP/releases/download/v2.1.0-beta/AutoPiP.dmg"
+        sparkle:version="11"
+        sparkle:shortVersionString="2.1.0"
+        length="1407786"
+        type="application/octet-stream"/>
+</item>
         <item>
             <title>Version 2.0.0</title>
             <description>
