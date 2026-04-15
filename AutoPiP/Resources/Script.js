@@ -73,6 +73,16 @@ document.addEventListener('DOMContentLoaded', function() {
         var dl = document.getElementById('onb-auto-download');
         dl.disabled = !this.checked;
         if (!this.checked) dl.checked = false;
+        webkit.messageHandlers.controller.postMessage("set-auto-check:" + this.checked);
+        if (!this.checked) webkit.messageHandlers.controller.postMessage("set-auto-download:false");
+    });
+
+    document.getElementById('onb-auto-download').addEventListener('change', function() {
+        webkit.messageHandlers.controller.postMessage("set-auto-download:" + this.checked);
+    });
+
+    document.getElementById('onb-beta').addEventListener('change', function() {
+        webkit.messageHandlers.controller.postMessage("set-beta:" + this.checked);
     });
 
     document.getElementById('onb-check-updates').addEventListener('click', function() {
