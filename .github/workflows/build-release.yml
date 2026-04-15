@@ -300,12 +300,18 @@ jobs:
 
             DOWNLOAD_URL="https://github.com/vordenken/AutoPiP/releases/download/${TAG}/AutoPiP.dmg"
             PUB_DATE=$(date -u '+%a, %d %b %Y %H:%M:%S %z')
+            # For betas, use the full tag (e.g. "2.1.0-beta12") as display version
+            if [ "$CHANNEL" = "beta" ]; then
+              DISPLAY_VERSION="${TAG#v}"
+            else
+              DISPLAY_VERSION="${VERSION}"
+            fi
 
             echo "            <pubDate>${PUB_DATE}</pubDate>"
             echo '            <enclosure'
             echo "                url=\"${DOWNLOAD_URL}\""
             echo "                sparkle:version=\"${BUILD}\""
-            echo "                sparkle:shortVersionString=\"${VERSION}\"${SIG_ATTR}"
+            echo "                sparkle:shortVersionString=\"${DISPLAY_VERSION}\"${SIG_ATTR}"
             echo "                length=\"${FILE_LENGTH}\""
             echo '                type="application/octet-stream"/>'
             echo '        </item>'
