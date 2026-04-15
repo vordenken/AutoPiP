@@ -2,17 +2,29 @@
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
     <channel>
         <title>AutoPiP Updates</title>
-<item>
-    <title>Version 2.1.0</title>
+        <item>
+            <title>Version 2.1.0</title>
             <sparkle:channel>beta</sparkle:channel>
-    <pubDate>Tue, 14 Apr 2026 20:16:38 +0000</pubDate>
-    <enclosure
-        url="https://github.com/vordenken/AutoPiP/releases/download/v2.1.0-beta/AutoPiP.dmg"
-        sparkle:version="11"
-        sparkle:shortVersionString="2.1.0"
-        length="1407786"
-        type="application/octet-stream"/>
-</item>
+            <description>
+                <![CDATA[
+                    <ul>
+                        <li>New onboarding flow with feature overview, support links, and version display</li>
+                        <li>Toggle switches matching Safari toolbar popup styling</li>
+                        <li>Post-onboarding view shows extension status and update settings</li>
+                        <li>Safari permission hint during setup</li>
+                        <li>Cleaned up macOS menu bar</li>
+                    </ul>
+                ]]>
+            </description>
+            <pubDate>Wed, 15 Apr 2026 10:18:25 +0000</pubDate>
+            <enclosure
+                url="https://github.com/vordenken/AutoPiP/releases/download/v2.1.0-beta1/AutoPiP.dmg"
+                sparkle:version="13"
+                sparkle:shortVersionString="2.1.0"
+                sparkle:edSignature="8byYCW5iJhxXWgpR5AdKD6OozjkRhzOMAhY8r1SyO1ALUzbuoIGiYh3xw5nsccJ7A1nnW/MGEV9FHIHRuIMTAQ=="
+                length="1407735"
+                type="application/octet-stream"/>
+        </item>
         <item>
             <title>Version 2.0.0</title>
             <description>
