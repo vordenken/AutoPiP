@@ -1,10 +1,12 @@
 2.1.0
 ---
-- New onboarding flow with feature overview, support links, and version display
-- Toggle switches matching Safari toolbar popup styling
-- Post-onboarding view shows extension status and update settings
-- Safari permission hint during setup
-- Cleaned up macOS menu bar
+### What's New
+- 🎨 New onboarding flow — guides through extension setup and update settings on first launch
+- ⚙️ Update preferences (auto-check, auto-download, beta channel) now configurable during setup
+
+### Under the Hood
+- 🔧 Builds and releases are now fully automated via GitHub Actions
+- 🧪 Beta release channel — opt in to test upcoming features before they reach the stable release
 
 ## 2.0.0
 - Global on/off toggle to temporarily disable AutoPiP without removing the extension
