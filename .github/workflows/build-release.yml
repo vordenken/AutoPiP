@@ -22,6 +22,14 @@ jobs:
       - name: Decide whether to build
         id: check
         run: |
+          # Never build on commits pushed by the bot itself (e.g. appcast updates)
+          COMMITTER="${{ github.event.head_commit.author.name }}"
+          if [ "$COMMITTER" = "github-actions[bot]" ]; then
+            echo "should-build=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping — commit authored by github-actions[bot]"
+            exit 0
+          fi
+
           if [ "${{ github.ref_name }}" != "main" ]; then
             echo "should-build=true" >> "$GITHUB_OUTPUT"
             echo "Feature branch — always build"
