@@ -16,12 +16,12 @@
                     </ul>
                 ]]>
             </description>
-            <pubDate>Wed, 15 Apr 2026 10:28:51 +0000</pubDate>
+            <pubDate>Wed, 15 Apr 2026 10:31:12 +0000</pubDate>
             <enclosure
-                url="https://github.com/vordenken/AutoPiP/releases/download/v2.1.0-beta7/AutoPiP.dmg"
-                sparkle:version="19"
+                url="https://github.com/vordenken/AutoPiP/releases/download/v2.1.0-beta8/AutoPiP.dmg"
+                sparkle:version="20"
                 sparkle:shortVersionString="2.1.0"
-                sparkle:edSignature="WUhk5koimdA22aZkHND+3mW55ubBKyQJ6YZHBmxRi7Ji18PtNgyUXXlR795mQ9Rodd6LegsQCuhhNqoBCW89Bw=="
+                sparkle:edSignature="PzrkS+EK7LfoYLgXz6kU+yKejGkOijRQhIuJjTSFPbgmi157nF+PMBcXevcWECJb99pVMXh4Ve5OPK5Tp7JfBA=="
                 length="1407762"
                 type="application/octet-stream"/>
         </item>
