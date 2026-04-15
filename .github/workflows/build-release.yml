@@ -266,16 +266,26 @@ jobs:
           # ── Build appcast <item> XML ──
           {
             echo '        <item>'
-            echo "            <title>Version ${VERSION}</title>"
 
             if [ "$CHANNEL" = "beta" ]; then
+              echo "            <title>Version ${VERSION} (Beta)</title>"
               echo '            <sparkle:channel>beta</sparkle:channel>'
+            else
+              echo "            <title>Version ${VERSION}</title>"
             fi
 
             # Description from changelog
             if [ -s "$RUNNER_TEMP/changelog.txt" ]; then
               echo '            <description>'
               echo '                <![CDATA['
+
+              # Beta notice banner
+              if [ "$CHANNEL" = "beta" ]; then
+                echo '                    <p style="background:#fff3cd;border:1px solid #ffc107;border-radius:6px;padding:8px 12px;margin-bottom:12px;color:#856404;font-size:0.9em;">'
+                echo '                        ⚠️ <strong>Beta Release</strong> — This version may be unstable. Only install if you want to test new features early.'
+                echo '                    </p>'
+              fi
+
               echo '                    <ul>'
               while IFS= read -r line; do
                 case "$line" in
@@ -332,7 +342,18 @@ jobs:
         run: |
           NOTES="$RUNNER_TEMP/release_notes.md"
 
-          # Prepend changelog if available
+          # Prepend beta notice for pre-releases
+          if [ "${{ steps.version.outputs.prerelease }}" = "true" ]; then
+            {
+              echo "> [!WARNING]"
+              echo "> **This is a beta release.** It may be unstable or incomplete. Only install if you want to test new features early."
+              echo ""
+            } > "$NOTES"
+          else
+            : > "$NOTES"
+          fi
+
+          # Append changelog if available
           if [ -s "$RUNNER_TEMP/changelog.txt" ]; then
             {
               echo "## Changelog"
@@ -341,9 +362,7 @@ jobs:
               echo ""
               echo "---"
               echo ""
-            } > "$NOTES"
-          else
-            : > "$NOTES"
+            } >> "$NOTES"
           fi
 
           cat >> "$NOTES" <<'INSTALL_EOF'
