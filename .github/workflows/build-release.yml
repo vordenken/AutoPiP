@@ -234,7 +234,15 @@ jobs:
           fi
 
           echo "Signing DMG with Sparkle EdDSA…"
-          SIGN_OUTPUT=$(echo "$SPARKLE_PRIVATE_KEY" | "$SIGN_TOOL" "$DMG_PATH" --ed-key-file -)
+          KEY_FILE="$RUNNER_TEMP/sparkle_ed_key"
+          echo "$SPARKLE_PRIVATE_KEY" > "$KEY_FILE"
+          SIGN_OUTPUT=$("$SIGN_TOOL" "$DMG_PATH" --ed-key-file "$KEY_FILE" 2>&1) || {
+            echo "::error::sign_update failed:"
+            echo "$SIGN_OUTPUT"
+            rm -f "$KEY_FILE"
+            exit 1
+          }
+          rm -f "$KEY_FILE"
           SIGNATURE=$(echo "$SIGN_OUTPUT" | grep -oE 'sparkle:edSignature="[^"]+"' | cut -d'"' -f2)
           if [ -z "$SIGNATURE" ]; then
             echo "::error::Sparkle signing failed — no edSignature found in output:"
