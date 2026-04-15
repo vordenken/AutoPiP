@@ -1,1 +1,26 @@
 2.1.0
+---
+- New onboarding flow with feature overview, support links, and version display
+- Toggle switches matching Safari toolbar popup styling
+- Post-onboarding view shows extension status and update settings
+- Safari permission hint during setup
+- Cleaned up macOS menu bar
+
+## 2.0.0
+- Global on/off toggle to temporarily disable AutoPiP without removing the extension
+- Configurable keyboard shortcut to manually trigger PiP (default: ⌥P)
+- Blacklist / Whitelist mode to control which sites AutoPiP is active on
+- Updated Sparkle to 2.9.0
+
+## 1.0.1
+- Fixed issue where clicking into YouTube live chat would incorrectly activate PiP mode
+- Improved focus detection to prevent PiP activation on internal page interactions
+
+## 1.0
+- Bugfix: Twitch.tv
+
+## 0.4
+- Added Disney+ support
+- Added feature for PiP on YouTube scrolling
+- Enhanced control over PiP behavior with new settings for tab switching, window switching, and scrolling on YouTube
+- Updated popup interface with additional checkboxes for PiP settings
