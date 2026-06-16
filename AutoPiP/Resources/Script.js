@@ -119,7 +119,10 @@ document.addEventListener('DOMContentLoaded', function() {
         webkit.messageHandlers.controller.postMessage("set-auto-check:" + this.checked);
         var dl = document.getElementById('auto-download-toggle');
         dl.disabled = !this.checked;
-        if (!this.checked) dl.checked = false;
+        if (!this.checked) {
+            dl.checked = false;
+            webkit.messageHandlers.controller.postMessage("set-auto-download:false");
+        }
     });
 
     document.getElementById('auto-download-toggle').addEventListener('change', function() {
