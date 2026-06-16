@@ -52,7 +52,7 @@ The workflow automatically:
 ### GitHub App for Branch Protection
 
 If `main` has branch protection, the workflow needs a GitHub App to push the appcast update. Create a GitHub App with **Contents: Read & Write** permission, install it on the repo, then:
-- Add variable `CLienT_ID` with the App's client ID
+- Add variable `CLIENT_ID` with the App's client ID
 - Add secret `APP_PRIVATE_KEY` with the App's private key
 - Add the App to the branch protection bypass list
 
