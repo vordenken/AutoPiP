@@ -34,29 +34,33 @@ jobs:
 
       - name: Decide whether to build
         id: check
+        env:
+          ACTOR: ${{ github.actor }}
+          REF_NAME: ${{ github.ref_name }}
+          BEFORE: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
         run: |
-          # Never build on commits pushed by the bot itself (e.g. appcast updates)
-          COMMITTER="${{ github.event.head_commit.author.name }}"
-          if [ "$COMMITTER" = "github-actions[bot]" ]; then
+          # Never build when triggered by the bot itself (e.g. appcast updates).
+          # Use github.actor — github.event.head_commit.author.name is user-spoofable.
+          if [ "$ACTOR" = "github-actions[bot]" ]; then
             echo "should-build=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Skipping — commit authored by github-actions[bot]"
+            echo "::notice::Skipping — actor is github-actions[bot]"
             exit 0
           fi
 
-          if [ "${{ github.ref_name }}" != "main" ]; then
+          if [ "$REF_NAME" != "main" ]; then
             echo "should-build=true" >> "$GITHUB_OUTPUT"
             echo "Feature branch — always build"
             exit 0
           fi
 
-          BEFORE="${{ github.event.before }}"
           if [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
             echo "should-build=true" >> "$GITHUB_OUTPUT"
             echo "New branch push — build"
             exit 0
           fi
 
-          if git diff --name-only "$BEFORE" "${{ github.sha }}" | grep -q '^semver\.txt$'; then
+          if git diff --name-only "$BEFORE" "$HEAD_SHA" | grep -q '^semver\.txt$'; then
             echo "should-build=true" >> "$GITHUB_OUTPUT"
             echo "semver.txt changed on main — build"
           else
@@ -92,6 +96,8 @@ jobs:
       # ── Version & Changelog ────────────────────────────────────
       - name: Read version and changelog from semver.txt
         id: version
+        env:
+          REF_NAME: ${{ github.ref_name }}
         run: |
           VERSION=$(head -1 semver.txt | tr -d '[:space:]')
           if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -103,7 +109,7 @@ jobs:
           awk '/^---$/{found=1; next} /^## /{exit} found{print}' semver.txt \
             | sed '/^[[:space:]]*$/d' > "$RUNNER_TEMP/changelog.txt"
 
-          if [ "${{ github.ref_name }}" = "main" ]; then
+          if [ "$REF_NAME" = "main" ]; then
             TAG="v${VERSION}"
             PRERELEASE=false
             CHANNEL=stable
@@ -138,8 +144,10 @@ jobs:
         run: |
           TAG="${{ steps.version.outputs.tag }}"
           if git rev-parse "refs/tags/${TAG}" >/dev/null 2>&1; then
-            echo "::error::Tag ${TAG} already exists. For betas, numbers auto-increment — if this is unexpected, check existing tags with: git tag -l 'v*'"
-            exit 1
+            echo "::warning::Tag ${TAG} already exists — assuming partial release, will reconcile (re-upload asset, refresh appcast)."
+            echo "tag_exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag_exists=false" >> "$GITHUB_OUTPUT"
           fi
 
       # ── Signing ────────────────────────────────────────────────
@@ -171,9 +179,11 @@ jobs:
 
       # ── Build ──────────────────────────────────────────────────
       - name: Set version in Xcode project
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          BUILD: ${{ github.run_number }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          BUILD=$(( ${{ github.run_number }} + 10 ))
+          BUILD=$(( BUILD + 10 ))
 
           sed -i '' "s/MARKETING_VERSION = .*;/MARKETING_VERSION = ${VERSION};/" \
             AutoPiP.xcodeproj/project.pbxproj
@@ -228,9 +238,10 @@ jobs:
       - name: Sign DMG and prepare Sparkle appcast
         env:
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+          VERSION: ${{ steps.version.outputs.version }}
+          BUILD: ${{ github.run_number }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          BUILD=$(( ${{ github.run_number }} + 10 ))
+          BUILD=$(( BUILD + 10 ))
           TAG="${{ steps.version.outputs.tag }}"
           CHANNEL="${{ steps.version.outputs.channel }}"
           DMG_PATH="$RUNNER_TEMP/AutoPiP.dmg"
@@ -423,11 +434,10 @@ jobs:
       - name: Push appcast to working branch and main
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
+          WORKING_BRANCH: ${{ github.ref_name }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          WORKING_BRANCH="${{ github.ref_name }}"
           TAG="${{ steps.version.outputs.tag }}"
 
           # Save updated appcast
