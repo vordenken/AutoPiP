@@ -18,9 +18,6 @@ on:
       - '.github/dependabot.yml'
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
   # ── Gate: on main only build when semver.txt changed ─────────
   check:
@@ -73,6 +70,8 @@ jobs:
     needs: check
     if: needs.check.outputs.should-build == 'true'
     runs-on: macos-15
+    permissions:
+      contents: write
     concurrency:
       group: build-${{ github.ref }}
       cancel-in-progress: true
