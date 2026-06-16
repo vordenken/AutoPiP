@@ -4,8 +4,8 @@ on:
   push:
     branches: [main, 'feature/*']
     paths-ignore:
-      # Skip the workflow entirely when only docs/repo-meta files changed.
-      # Source, semver.txt, appcast.xml and this workflow itself still trigger a build.
+      # Skip the workflow entirely when only docs/repo-meta/appcast files changed.
+      # Source, semver.txt and this workflow itself still trigger a build.
       - '**.md'
       - 'LICENSE'
       - 'PRIVACY.md'
@@ -16,6 +16,7 @@ on:
       - '.github/pull_request_template.md'
       - '.github/CODEOWNERS'
       - '.github/dependabot.yml'
+      - 'appcast.xml'
   workflow_dispatch:
 
 jobs:
@@ -39,11 +40,14 @@ jobs:
         run: |
           # Never build when triggered by the bot itself (e.g. appcast updates).
           # Use github.actor — github.event.head_commit.author.name is user-spoofable.
-          if [ "$ACTOR" = "github-actions[bot]" ]; then
-            echo "should-build=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Skipping — actor is github-actions[bot]"
-            exit 0
-          fi
+          # The appcast push is also excluded via paths-ignore at the trigger level.
+          case "$ACTOR" in
+            "github-actions[bot]"|"autopip-ci-bot"|*[Bb]ot)
+              echo "should-build=false" >> "$GITHUB_OUTPUT"
+              echo "::notice::Skipping — actor is $ACTOR (bot)"
+              exit 0
+              ;;
+          esac
 
           if [ "$REF_NAME" != "main" ]; then
             echo "should-build=true" >> "$GITHUB_OUTPUT"
