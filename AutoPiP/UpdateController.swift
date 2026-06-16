@@ -29,12 +29,18 @@ class UpdateController {
     
     var automaticallyChecksForUpdates: Bool {
         get { updater.automaticallyChecksForUpdates }
-        set { updater.automaticallyChecksForUpdates = newValue }
+        set {
+            updater.automaticallyChecksForUpdates = newValue
+            if !newValue { updater.automaticallyDownloadsUpdates = false }
+        }
     }
-    
+
     var automaticallyDownloadsUpdates: Bool {
         get { updater.automaticallyDownloadsUpdates }
-        set { updater.automaticallyDownloadsUpdates = newValue }
+        set {
+            if newValue { updater.automaticallyChecksForUpdates = true }
+            updater.automaticallyDownloadsUpdates = newValue
+        }
     }
     
     var isBetaUpdatesEnabled: Bool {
