@@ -46,7 +46,7 @@ The workflow automatically:
 - Sets the version in the Xcode project and `manifest.json`
 - Builds, archives, and creates a DMG
 - Signs the DMG with the code signing certificate and Sparkle EdDSA
-- Creates a git tag and GitHub Release with changelog + installation instructions
+- Creates a Git tag and GitHub Release with changelog + installation instructions
 - Updates `appcast.xml` (with changelog as `<description>`) on the working branch and `main`
 
 ### GitHub App for Branch Protection
