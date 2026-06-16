@@ -1,0 +1,474 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [main, 'feature/*']
+    paths-ignore:
+      # Skip the workflow entirely when only docs/repo-meta/appcast files changed.
+      # Source, semver.txt and this workflow itself still trigger a build.
+      - '**.md'
+      - 'LICENSE'
+      - 'PRIVACY.md'
+      - 'SECURITY.md'
+      - 'renovate.json'
+      - '.gitignore'
+      - '.github/**'
+      - 'appcast.xml'
+  workflow_dispatch:
+
+jobs:
+  # ── Gate: on main only build when semver.txt changed ─────────
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      should-build: ${{ steps.check.outputs.should-build }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      - name: Decide whether to build
+        id: check
+        env:
+          ACTOR: ${{ github.actor }}
+          REF_NAME: ${{ github.ref_name }}
+          BEFORE: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          # Never build when triggered by the bot itself (e.g. appcast updates).
+          # Use github.actor — github.event.head_commit.author.name is user-spoofable.
+          # The appcast push is also excluded via paths-ignore at the trigger level.
+          case "$ACTOR" in
+            "github-actions[bot]"|"autopip-ci-bot"|*[Bb]ot)
+              echo "should-build=false" >> "$GITHUB_OUTPUT"
+              echo "::notice::Skipping — actor is $ACTOR (bot)"
+              exit 0
+              ;;
+          esac
+
+          if [ "$REF_NAME" != "main" ]; then
+            echo "should-build=true" >> "$GITHUB_OUTPUT"
+            echo "Feature branch — always build"
+            exit 0
+          fi
+
+          if [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            echo "should-build=true" >> "$GITHUB_OUTPUT"
+            echo "New branch push — build"
+            exit 0
+          fi
+
+          if git diff --name-only "$BEFORE" "$HEAD_SHA" | grep -q '^semver\.txt$'; then
+            echo "should-build=true" >> "$GITHUB_OUTPUT"
+            echo "semver.txt changed on main — build"
+          else
+            echo "should-build=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping — semver.txt not changed on main"
+          fi
+
+  # ── Main build job ───────────────────────────────────────────
+  build-and-release:
+    needs: check
+    if: needs.check.outputs.should-build == 'true'
+    runs-on: macos-15
+    permissions:
+      contents: write
+    concurrency:
+      group: build-${{ github.ref }}
+      cancel-in-progress: true
+
+    steps:
+      # ── Setup ──────────────────────────────────────────────────
+      - name: Generate GitHub App token
+        id: app-token
+        if: vars.CLIENT_ID != ''
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.CLIENT_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token || github.token }}
+
+      # ── Version & Changelog ────────────────────────────────────
+      - name: Read version and changelog from semver.txt
+        id: version
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          VERSION=$(head -1 semver.txt | tr -d '[:space:]')
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Invalid semver in semver.txt line 1: '$VERSION'"
+            exit 1
+          fi
+
+          # Extract changelog for current version (between --- and next ## or EOF)
+          awk '/^---$/{found=1; next} /^## /{exit} found{print}' semver.txt \
+            | sed '/^[[:space:]]*$/d' > "$RUNNER_TEMP/changelog.txt"
+
+          if [ "$REF_NAME" = "main" ]; then
+            TAG="v${VERSION}"
+            PRERELEASE=false
+            CHANNEL=stable
+          else
+            # Auto-increment beta number from existing tags
+            BETA_NUM=1
+            LATEST=$(git tag -l "v${VERSION}-beta*" \
+              | sed "s/v${VERSION}-beta//" \
+              | grep -E '^[0-9]+$' \
+              | sort -n | tail -1)
+            if [ -n "$LATEST" ]; then
+              BETA_NUM=$((LATEST + 1))
+            fi
+            TAG="v${VERSION}-beta${BETA_NUM}"
+            PRERELEASE=true
+            CHANNEL=beta
+          fi
+
+          echo "version=$VERSION"       >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG"               >> "$GITHUB_OUTPUT"
+          echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
+          echo "channel=$CHANNEL"       >> "$GITHUB_OUTPUT"
+
+          echo "### $CHANNEL release — $TAG" >> "$GITHUB_STEP_SUMMARY"
+          if [ -s "$RUNNER_TEMP/changelog.txt" ]; then
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            cat "$RUNNER_TEMP/changelog.txt" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Check for existing tag
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          if git rev-parse "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "::warning::Tag ${TAG} already exists — assuming partial release, will reconcile (re-upload asset, refresh appcast)."
+            echo "tag_exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag_exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ── Signing ────────────────────────────────────────────────
+      - name: Import signing certificate
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+        run: |
+          if [ -z "$BUILD_CERTIFICATE_BASE64" ]; then
+            echo "::error::BUILD_CERTIFICATE_BASE64 secret is not set — code signing is required."
+            exit 1
+          fi
+
+          CERTIFICATE_PATH="$RUNNER_TEMP/build_certificate.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
+
+          echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o "$CERTIFICATE_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          security import "$CERTIFICATE_PATH" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+
+      # ── Build ──────────────────────────────────────────────────
+      - name: Set version in Xcode project
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          BUILD: ${{ github.run_number }}
+        run: |
+          BUILD=$(( BUILD + 10 ))
+
+          sed -i '' "s/MARKETING_VERSION = .*;/MARKETING_VERSION = ${VERSION};/" \
+            AutoPiP.xcodeproj/project.pbxproj
+          sed -i '' "s/CURRENT_PROJECT_VERSION = .*;/CURRENT_PROJECT_VERSION = ${BUILD};/" \
+            AutoPiP.xcodeproj/project.pbxproj
+
+          sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"${VERSION}\"/" \
+            "AutoPiP Extension/Resources/manifest.json"
+
+          echo "MARKETING_VERSION=$VERSION  CURRENT_PROJECT_VERSION=$BUILD"
+
+      - name: Resolve Swift packages
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project AutoPiP.xcodeproj \
+            -scheme AutoPiP
+
+      - name: Archive
+        run: |
+          ARCHIVE_PATH="$RUNNER_TEMP/AutoPiP.xcarchive"
+
+          xcodebuild archive \
+            -project AutoPiP.xcodeproj \
+            -scheme AutoPiP \
+            -configuration Release \
+            -archivePath "$ARCHIVE_PATH"
+
+      - name: Create DMG
+        run: |
+          APP_PATH="$RUNNER_TEMP/AutoPiP.xcarchive/Products/Applications/AutoPiP.app"
+
+          if [ ! -d "$APP_PATH" ]; then
+            echo "::error::AutoPiP.app not found in archive"
+            exit 1
+          fi
+
+          brew install create-dmg
+
+          create-dmg \
+            --volname "AutoPiP" \
+            --window-pos 200 120 \
+            --window-size 600 400 \
+            --icon-size 100 \
+            --icon "AutoPiP.app" 175 190 \
+            --app-drop-link 425 190 \
+            "$RUNNER_TEMP/AutoPiP.dmg" \
+            "$APP_PATH"
+
+          echo "AutoPiP.dmg — $(du -h "$RUNNER_TEMP/AutoPiP.dmg" | cut -f1)"
+
+      # ── Sparkle ────────────────────────────────────────────────
+      - name: Sign DMG and prepare Sparkle appcast
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+          VERSION: ${{ steps.version.outputs.version }}
+          BUILD: ${{ github.run_number }}
+        run: |
+          BUILD=$(( BUILD + 10 ))
+          TAG="${{ steps.version.outputs.tag }}"
+          CHANNEL="${{ steps.version.outputs.channel }}"
+          DMG_PATH="$RUNNER_TEMP/AutoPiP.dmg"
+
+          FILE_LENGTH=$(stat -f%z "$DMG_PATH")
+          echo "DMG size: $FILE_LENGTH bytes"
+
+          # ── Sparkle EdDSA signature (required) ──
+          if [ -z "$SPARKLE_PRIVATE_KEY" ]; then
+            echo "::error::SPARKLE_PRIVATE_KEY secret is not set — Sparkle signing is required."
+            exit 1
+          fi
+
+          echo "Downloading Sparkle tools…"
+          curl -fSL \
+            "https://github.com/sparkle-project/Sparkle/releases/download/2.9.1/Sparkle-2.9.1.tar.xz" \
+            -o "$RUNNER_TEMP/sparkle.tar.xz"
+          mkdir -p "$RUNNER_TEMP/sparkle"
+          tar -xJf "$RUNNER_TEMP/sparkle.tar.xz" -C "$RUNNER_TEMP/sparkle"
+
+          SIGN_TOOL="$RUNNER_TEMP/sparkle/bin/sign_update"
+          if [ ! -x "$SIGN_TOOL" ]; then
+            echo "::error::sign_update not found or not executable at $SIGN_TOOL"
+            exit 1
+          fi
+
+          echo "Signing DMG with Sparkle EdDSA…"
+          KEY_FILE="$RUNNER_TEMP/sparkle_ed_key"
+          echo "$SPARKLE_PRIVATE_KEY" > "$KEY_FILE"
+          SIGN_OUTPUT=$("$SIGN_TOOL" "$DMG_PATH" --ed-key-file "$KEY_FILE" 2>&1) || {
+            echo "::error::sign_update failed:"
+            echo "$SIGN_OUTPUT"
+            rm -f "$KEY_FILE"
+            exit 1
+          }
+          rm -f "$KEY_FILE"
+          SIGNATURE=$(echo "$SIGN_OUTPUT" | grep -oE 'sparkle:edSignature="[^"]+"' | cut -d'"' -f2)
+          if [ -z "$SIGNATURE" ]; then
+            echo "::error::Sparkle signing failed — no edSignature found in output:"
+            echo "$SIGN_OUTPUT"
+            exit 1
+          fi
+          SIG_ATTR=$'\n'"                sparkle:edSignature=\"${SIGNATURE}\""
+          echo "✅ Sparkle EdDSA signature generated"
+
+          # ── Build appcast <item> XML ──
+          {
+            echo '        <item>'
+
+            if [ "$CHANNEL" = "beta" ]; then
+              echo "            <title>Version ${VERSION} (Beta)</title>"
+              echo '            <sparkle:channel>beta</sparkle:channel>'
+            else
+              echo "            <title>Version ${VERSION}</title>"
+            fi
+
+            # Description from changelog
+            if [ -s "$RUNNER_TEMP/changelog.txt" ]; then
+              echo '            <description>'
+              echo '                <![CDATA['
+
+              # Beta notice banner
+              if [ "$CHANNEL" = "beta" ]; then
+                echo '                    <p style="background:#fff3cd;border:1px solid #ffc107;border-radius:6px;padding:8px 12px;margin-bottom:12px;color:#856404;font-size:0.9em;">'
+                echo '                        ⚠️ <strong>Beta Release</strong> — This version may be unstable. Only install if you want to test new features early.'
+                echo '                    </p>'
+              fi
+
+              echo '                    <ul>'
+              while IFS= read -r line; do
+                case "$line" in
+                  "- "*)  echo "                        <li>${line#- }</li>" ;;
+                  "### "*) echo "                    </ul><h3>${line#\#\#\# }</h3><ul>" ;;
+                esac
+              done < "$RUNNER_TEMP/changelog.txt"
+              echo '                    </ul>'
+              echo '                ]]>'
+              echo '            </description>'
+            fi
+
+            DOWNLOAD_URL="https://github.com/vordenken/AutoPiP/releases/download/${TAG}/AutoPiP.dmg"
+            PUB_DATE=$(date -u '+%a, %d %b %Y %H:%M:%S %z')
+            # For betas, use the full tag (e.g. "2.1.0-beta12") as display version
+            if [ "$CHANNEL" = "beta" ]; then
+              DISPLAY_VERSION="${TAG#v}"
+            else
+              DISPLAY_VERSION="${VERSION}"
+            fi
+
+            echo "            <pubDate>${PUB_DATE}</pubDate>"
+            echo '            <enclosure'
+            echo "                url=\"${DOWNLOAD_URL}\""
+            echo "                sparkle:version=\"${BUILD}\""
+            echo "                sparkle:shortVersionString=\"${DISPLAY_VERSION}\"${SIG_ATTR}"
+            echo "                length=\"${FILE_LENGTH}\""
+            echo '                type="application/octet-stream"/>'
+            echo '        </item>'
+          } > "$RUNNER_TEMP/appcast_item.xml"
+
+          # Remove existing entries for the same shortVersionString (dedup)
+          awk -v ver="$VERSION" '
+            /<item>/ { buf = $0; inside = 1; next }
+            inside {
+              buf = buf ORS $0
+              if (/<\/item>/) {
+                inside = 0
+                if (buf !~ "sparkle:shortVersionString=\"" ver "\"") print buf
+                buf = ""
+              }
+              next
+            }
+            { print }
+          ' appcast.xml > "$RUNNER_TEMP/appcast_deduped.xml"
+          mv "$RUNNER_TEMP/appcast_deduped.xml" appcast.xml
+
+          # Insert after <title>AutoPiP Updates</title>
+          sed -i '' "/<title>AutoPiP Updates<\/title>/r $RUNNER_TEMP/appcast_item.xml" appcast.xml
+          echo "appcast.xml updated — $CHANNEL ${TAG}"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: AutoPiP
+          path: ${{ runner.temp }}/AutoPiP.dmg
+
+      # ── Release ────────────────────────────────────────────────
+      - name: Prepare release notes
+        run: |
+          NOTES="$RUNNER_TEMP/release_notes.md"
+
+          # Prepend beta notice for pre-releases
+          if [ "${{ steps.version.outputs.prerelease }}" = "true" ]; then
+            {
+              echo "> [!WARNING]"
+              echo "> **This is a beta release.** It may be unstable or incomplete. Only install if you want to test new features early."
+              echo ""
+            } > "$NOTES"
+          else
+            : > "$NOTES"
+          fi
+
+          # Append changelog if available
+          if [ -s "$RUNNER_TEMP/changelog.txt" ]; then
+            {
+              echo "## Changelog"
+              echo ""
+              cat "$RUNNER_TEMP/changelog.txt"
+              echo ""
+              echo "---"
+              echo ""
+            } >> "$NOTES"
+          fi
+
+          cat >> "$NOTES" <<'INSTALL_EOF'
+          ## Important Note
+
+          This extension is currently not notarized by Apple. You'll need to bypass macOS security settings to initially install it. Updating works through Sparkle and doesn't need these steps again!
+
+          ### Installation Steps
+
+          1. Download `AutoPiP.dmg` file from the releases page and open it
+          2. When trying to open `AutoPiP.dmg`, macOS will show a security warning
+          3. To bypass this:
+              - Open System Settings
+              - Go to Privacy & Security
+              - Scroll down and click "Open Anyway"
+          4. Open `AutoPiP.dmg` again
+          5. Copy the `.app` to your Applications folder
+          6. When trying to open the app, macOS will show a security warning
+          7. To bypass this:
+              - Open System Settings
+              - Go to Privacy & Security
+              - Scroll down and click "Open Anyway"
+          8. Open `AutoPiP.app` again
+          9. Follow the instructions
+          10. Allow the requested permissions when prompted
+          INSTALL_EOF
+
+      - name: Create tag and GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          files: ${{ runner.temp }}/AutoPiP.dmg
+          prerelease: ${{ steps.version.outputs.prerelease == 'true' }}
+          body_path: ${{ runner.temp }}/release_notes.md
+          token: ${{ steps.app-token.outputs.token || github.token }}
+
+      # ── Push appcast ───────────────────────────────────────────
+      - name: Push appcast to working branch and main
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
+          WORKING_BRANCH: ${{ github.ref_name }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          TAG="${{ steps.version.outputs.tag }}"
+
+          # Save updated appcast
+          cp appcast.xml "$RUNNER_TEMP/appcast.xml"
+          git checkout -- .
+
+          push_appcast() {
+            local branch="$1"
+            git checkout "$branch"
+            cp "$RUNNER_TEMP/appcast.xml" appcast.xml
+            git add appcast.xml
+            if git diff --cached --quiet; then
+              echo "appcast.xml unchanged on $branch — nothing to push"
+              return 0
+            fi
+            git commit -m "chore: update appcast for ${TAG}"
+            git push origin "$branch"
+            echo "✅ appcast.xml pushed to $branch"
+          }
+
+          push_appcast "$WORKING_BRANCH"
+
+          if [ "$WORKING_BRANCH" != "main" ]; then
+            git fetch origin main
+            push_appcast "main"
+          fi
+
+      # ── Cleanup ────────────────────────────────────────────────
+      - name: Cleanup keychain
+        if: always()
+        run: |
+          if [ -n "$KEYCHAIN_PATH" ] && [ -f "$KEYCHAIN_PATH" ]; then
+            security delete-keychain "$KEYCHAIN_PATH" || true
+          fi

@@ -1,0 +1,50 @@
+name: "🐛 Bug Report"
+description: Report a bug or unexpected behavior
+labels: [ "bug" ]
+body:
+- type: textarea
+  id: description
+  attributes:
+    label: Description
+    description: What happened? What did you expect to happen?
+  validations:
+    required: true
+- type: textarea
+  id: steps
+  attributes:
+    label: Steps to Reproduce
+    description: How can we reproduce the issue?
+    placeholder: |
+      1. Open YouTube in Safari
+      2. Play a video
+      3. Switch to another tab
+      4. ...
+  validations:
+    required: true
+- type: input
+  id: macos-version
+  attributes:
+    label: macOS Version
+    placeholder: "e.g. 15.4"
+  validations:
+    required: true
+- type: input
+  id: safari-version
+  attributes:
+    label: Safari Version
+    placeholder: "e.g. 18.3"
+  validations:
+    required: true
+- type: input
+  id: app-version
+  attributes:
+    label: AutoPiP Version
+    description: Shown in the app menu under "About AutoPiP"
+    placeholder: "e.g. 2.0.0"
+  validations:
+    required: true
+- type: textarea
+  id: additional
+  attributes:
+    label: Additional Context
+    description: Screenshots, screen recordings, or anything else that might help.

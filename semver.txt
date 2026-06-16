@@ -1,0 +1,28 @@
+2.1.0
+---
+### What's New
+- 🎨 New onboarding flow — guides through extension setup and update settings on first launch
+- ⚙️ Update preferences (auto-check, auto-download, beta channel) now configurable during setup
+
+### Under the Hood
+- 🔧 Builds and releases are now fully automated via GitHub Actions
+- 🧪 Beta release channel — opt in to test upcoming features before they reach the stable release
+
+## 2.0.0
+- Global on/off toggle to temporarily disable AutoPiP without removing the extension
+- Configurable keyboard shortcut to manually trigger PiP (default: ⌥P)
+- Blacklist / Whitelist mode to control which sites AutoPiP is active on
+- Updated Sparkle to 2.9.0
+
+## 1.0.1
+- Fixed issue where clicking into YouTube live chat would incorrectly activate PiP mode
+- Improved focus detection to prevent PiP activation on internal page interactions
+
+## 1.0
+- Bugfix: Twitch.tv
+
+## 0.4
+- Added Disney+ support
+- Added feature for PiP on YouTube scrolling
+- Enhanced control over PiP behavior with new settings for tab switching, window switching, and scrolling on YouTube
+- Updated popup interface with additional checkboxes for PiP settings
