@@ -3,6 +3,19 @@ name: Build and Release
 on:
   push:
     branches: [main, 'feature/*']
+    paths-ignore:
+      # Skip the workflow entirely when only docs/repo-meta files changed.
+      # Source, semver.txt, appcast.xml and this workflow itself still trigger a build.
+      - '**.md'
+      - 'LICENSE'
+      - 'PRIVACY.md'
+      - 'SECURITY.md'
+      - 'renovate.json'
+      - '.gitignore'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/pull_request_template.md'
+      - '.github/CODEOWNERS'
+      - '.github/dependabot.yml'
   workflow_dispatch:
 
 permissions:
