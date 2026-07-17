@@ -538,17 +538,61 @@ function enablePiP() {
     }
 }
 
+// Timestamp of the last disablePiP() call. Used to detect and correct unwanted
+// PiP -> fullscreen transitions that Safari/YouTube can produce instead of PiP -> inline.
+let lastPiPDisableTime = 0;
+const FULLSCREEN_CORRECTION_WINDOW_MS = 2000;
+
+/**
+ * Force a video out of fullscreen back to inline presentation.
+ * @param {HTMLVideoElement} video - Video element to restore
+ */
+function forceInlinePresentation(video) {
+    try {
+        // Exit element-level fullscreen (YouTube fullscreens the player container)
+        if (document.fullscreenElement && typeof document.exitFullscreen === 'function') {
+            document.exitFullscreen().catch(() => {});
+        }
+        // Exit legacy webkit video fullscreen
+        if (video.webkitDisplayingFullscreen && typeof video.webkitExitFullscreen === 'function') {
+            video.webkitExitFullscreen();
+        }
+        if (video.webkitPresentationMode === 'fullscreen') {
+            setWebkitPresentationMode(video, 'inline');
+        }
+    } catch (error) {
+        debugLog('Inline restore exception:', error.name);
+    }
+}
+
+// When exiting PiP, Safari (especially with YouTube's player) can transition the video to
+// the 'fullscreen' presentation mode instead of 'inline', covering the page content when
+// returning to the tab. The transition is async, so catch it via the presentation mode
+// change event and correct it if it happens shortly after we requested inline.
+document.addEventListener('webkitpresentationmodechanged', (event) => {
+    const video = event.target;
+    if (!video || typeof video.webkitPresentationMode === 'undefined') return;
+
+    const withinCorrectionWindow = Date.now() - lastPiPDisableTime < FULLSCREEN_CORRECTION_WINDOW_MS;
+    if (withinCorrectionWindow && video.webkitPresentationMode === 'fullscreen') {
+        debugLog('Unwanted fullscreen after PiP exit detected, restoring inline');
+        forceInlinePresentation(video);
+    }
+}, true); // Capture phase: the event fires on the video and doesn't reliably bubble
+
 function disablePiP() {
     const video = getVideo();
     if (!video) {
         debugLog('No video element found for PiP disable');
         return;
     }
-    
+
     if (!isPiPActive(video)) {
         debugLog('No active PiP to disable');
         return;
     }
+
+    lastPiPDisableTime = Date.now();
 
     try {
         if (setWebkitPresentationMode(video, 'inline')) {
@@ -560,6 +604,15 @@ function disablePiP() {
         console.error('[AutoPiP] PiP disable exception:', error.message || error);
         debugLog('PiP disable exception:', error.name);
     }
+
+    // Safety net in case the fullscreen transition happens without firing the
+    // presentation mode change event in this frame
+    setTimeout(() => {
+        if (video.webkitPresentationMode === 'fullscreen' || document.fullscreenElement) {
+            debugLog('Video stuck in fullscreen after PiP exit, restoring inline');
+            forceInlinePresentation(video);
+        }
+    }, 300);
 }
 
 // Manual PiP toggle – bypasses autopipEnabled & isSiteBlocked (explicit user action)
