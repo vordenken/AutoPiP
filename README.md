@@ -49,6 +49,7 @@ A Safari extension that automatically enables Picture-in-Picture (PiP) mode for 
 | Paramount+  |                |            |
 | Netflix     |                |            |
 | Jellyfin    |                |            |
+| BiliBili (哔哩哔哩)    |                |            |
 
 *AppleTV opens the native app instead of Safari
 
