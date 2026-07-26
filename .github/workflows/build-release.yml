@@ -8,8 +8,6 @@ on:
       # Source, semver.txt and this workflow itself still trigger a build.
       - '**.md'
       - 'LICENSE'
-      - 'PRIVACY.md'
-      - 'SECURITY.md'
       - 'renovate.json'
       - '.gitignore'
       - '.github/**'
