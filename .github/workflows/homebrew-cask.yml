@@ -1,0 +1,92 @@
+name: Homebrew cask
+
+# Validates the self-contained Homebrew tap in Casks/. The checkout is turned
+# into a real tap so that the cask is exercised exactly as a user's `brew tap`
+# of this repository would be.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Casks/**'
+      - '.github/workflows/homebrew-cask.yml'
+  pull_request:
+    paths:
+      - 'Casks/**'
+      - '.github/workflows/homebrew-cask.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cask:
+    name: Audit and install
+    runs-on: macos-15
+
+    env:
+      # `brew audit --online` queries the GitHub API; without a token the
+      # runner shares an IP-based limit of 60 requests per hour.
+      HOMEBREW_GITHUB_API_TOKEN: ${{ github.token }}
+      HOMEBREW_NO_ANALYTICS: 1
+      HOMEBREW_NO_AUTO_UPDATE: 1
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install the checkout as a tap
+        id: tap
+        run: |
+          OWNER=$(echo "${GITHUB_REPOSITORY%%/*}" | tr '[:upper:]' '[:lower:]')
+          TAP="${OWNER}/autopip"
+          TAP_PATH="$(brew --repository)/Library/Taps/${OWNER}/homebrew-autopip"
+
+          mkdir -p "$(dirname "$TAP_PATH")"
+          cp -R "$GITHUB_WORKSPACE" "$TAP_PATH"
+
+          # Homebrew 6.0 requires non-official taps to be trusted before their
+          # Ruby is evaluated. Whole-tap trust is fine on an ephemeral runner;
+          # users only need to trust the single cask (see README).
+          brew trust "$TAP"
+
+          echo "tap=$TAP" >> "$GITHUB_OUTPUT"
+          brew info --cask "${TAP}/autopip"
+
+      - name: brew style
+        run: brew style "${{ steps.tap.outputs.tap }}"
+
+      - name: brew audit
+        run: brew audit --cask --online --strict "${{ steps.tap.outputs.tap }}/autopip"
+
+      - name: brew livecheck
+        run: brew livecheck --cask --json "${{ steps.tap.outputs.tap }}/autopip"
+
+      - name: brew install
+        run: |
+          brew install --cask "${{ steps.tap.outputs.tap }}/autopip"
+          test -d /Applications/AutoPiP.app
+          test -d "/Applications/AutoPiP.app/Contents/PlugIns/AutoPiP Extension.appex"
+
+      # Releases are Apple Development signed and not notarized, so a
+      # quarantined bundle is refused at first launch. The cask's preflight
+      # clears the attribute; assert it actually did, on the installed copy
+      # that macOS would evaluate. `xattr -p` exits non-zero when the
+      # attribute is absent, which is the passing case.
+      - name: Assert the app is not quarantined
+        run: |
+          for target in \
+            /Applications/AutoPiP.app \
+            "/Applications/AutoPiP.app/Contents/PlugIns/AutoPiP Extension.appex"
+          do
+            if xattr -p com.apple.quarantine "$target" 2>/dev/null; then
+              echo "::error::$target is still quarantined; first launch would be blocked"
+              exit 1
+            fi
+            echo "ok: $target"
+          done
+
+      - name: brew uninstall --zap
+        run: |
+          brew uninstall --cask --zap "${{ steps.tap.outputs.tap }}/autopip"
+          test ! -d /Applications/AutoPiP.app

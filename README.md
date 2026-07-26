@@ -31,6 +31,13 @@ A Safari extension that automatically enables Picture-in-Picture (PiP) mode for 
 
 > **Updating:** To receive updates, open the AutoPiP app from time to time. Sparkle checks for updates automatically (once per day).
 
+### 🍺 Install with Homebrew
+
+```sh
+brew tap vordenken/autopip https://github.com/vordenken/AutoPiP
+brew install --cask vordenken/autopip/autopip
+```
+
 ## 🎯 Compatibility
 
 | ✅ Supported | ❌ Not Supported | ⁉️ Untested |

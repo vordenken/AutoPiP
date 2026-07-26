@@ -1,0 +1,132 @@
+name: Bump Homebrew cask
+
+# Keeps Casks/autopip.rb pointed at the newest stable release.
+#
+# This runs on a schedule rather than on `release: published` because releases
+# are cut by another workflow using the repository token, and events raised by
+# a workflow token do not start further workflow runs.
+
+on:
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: homebrew-cask-bump
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    name: Bump cask to latest stable
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: main
+
+      - name: Resolve latest stable release from the appcast
+        id: latest
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import xml.etree.ElementTree as ET
+
+          SPARKLE = "http://www.andymatuschak.org/xml-namespaces/sparkle"
+
+          root = ET.parse("appcast.xml").getroot()
+          stable = []
+          for item in root.find("channel").findall("item"):
+              # Beta items carry a <sparkle:channel>; stable items do not.
+              if item.find(f"{{{SPARKLE}}}channel") is not None:
+                  continue
+              enclosure = item.find("enclosure")
+              if enclosure is None:
+                  continue
+              short_version = enclosure.get(f"{{{SPARKLE}}}shortVersionString")
+              url = enclosure.get("url")
+              if not short_version or not url:
+                  continue
+              try:
+                  build = int(enclosure.get(f"{{{SPARKLE}}}version") or 0)
+              except ValueError:
+                  build = 0
+              stable.append((build, short_version, url))
+
+          if not stable:
+              raise SystemExit("::error::no stable item found in appcast.xml")
+
+          _, version, url = max(stable)
+          print(f"version={version}")
+          print(f"url={url}")
+          PY
+
+      - name: Compare with the cask
+        id: compare
+        env:
+          VERSION: ${{ steps.latest.outputs.version }}
+          URL: ${{ steps.latest.outputs.url }}
+        run: |
+          CURRENT=$(sed -n 's/^  version "\(.*\)"$/\1/p' Casks/autopip.rb)
+          echo "Cask: $CURRENT — appcast: $VERSION"
+
+          # The cask builds its URL as .../releases/download/v#{version}/AutoPiP.dmg;
+          # bail out instead of shipping a cask that points somewhere else.
+          EXPECTED="https://github.com/vordenken/AutoPiP/releases/download/v${VERSION}/AutoPiP.dmg"
+          if [ "$(echo "$URL" | tr '[:upper:]' '[:lower:]')" != "$(echo "$EXPECTED" | tr '[:upper:]' '[:lower:]')" ]; then
+            echo "::error::appcast URL $URL does not match the cask URL pattern $EXPECTED"
+            exit 1
+          fi
+
+          if [ "$CURRENT" = "$VERSION" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Update version and checksum
+        if: steps.compare.outputs.changed == 'true'
+        env:
+          VERSION: ${{ steps.latest.outputs.version }}
+          URL: ${{ steps.latest.outputs.url }}
+        run: |
+          curl -fsSL "$URL" -o AutoPiP.dmg
+          SHA256=$(sha256sum AutoPiP.dmg | cut -d' ' -f1)
+          rm -f AutoPiP.dmg
+          echo "sha256: $SHA256"
+
+          SHA256="$SHA256" python3 - <<'PY'
+          import os, re
+
+          path = "Casks/autopip.rb"
+          cask = open(path).read()
+          cask, n_version = re.subn(
+              r'^  version ".*"$', f'  version "{os.environ["VERSION"]}"', cask, count=1, flags=re.M
+          )
+          cask, n_sha = re.subn(
+              r'^  sha256 ".*"$', f'  sha256 "{os.environ["SHA256"]}"', cask, count=1, flags=re.M
+          )
+          if n_version != 1 or n_sha != 1:
+              raise SystemExit("::error::could not rewrite version/sha256 in Casks/autopip.rb")
+          open(path, "w").write(cask)
+          PY
+
+          git diff -- Casks/autopip.rb
+
+      - name: Commit and push
+        if: steps.compare.outputs.changed == 'true'
+        env:
+          VERSION: ${{ steps.latest.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Casks/autopip.rb
+          if git diff --cached --quiet; then
+            echo "nothing to commit"
+            exit 0
+          fi
+          git commit -m "chore: update Homebrew cask for v${VERSION}"
+          git push origin main
