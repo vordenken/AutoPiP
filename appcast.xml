@@ -3,10 +3,8 @@
     <channel>
         <title>AutoPiP Updates</title>
         <item>
-            <title>Version 2.1.0 (Beta)</title>
-            <sparkle:channel>beta</sparkle:channel>
+            <title>Version 2.1.0</title>
             <description><![CDATA[
-<p style="background:#fff3cd;border:1px solid #ffc107;border-radius:6px;padding:8px 12px;margin-bottom:12px;color:#856404;font-size:0.9em;">&#9888; <strong>Beta Release</strong> - This version may be unstable. Only install it if you want to test new features early.</p>
 <h3>What&#x27;s New</h3>
 <ul>
 <li>🎨 New onboarding flow — guides through extension setup and update settings on first launch</li>
@@ -18,84 +16,8 @@
 <li>🧪 Beta release channel — opt in to test upcoming features before they reach the stable release</li>
 </ul>
 ]]></description>
-            <pubDate>Mon, 31 Aug 2026 15:41:16 +0000</pubDate>
-            <enclosure url="https://github.com/vordenken/AutoPiP/releases/download/v2.1.0-beta21/AutoPiP.dmg" sparkle:version="44" sparkle:shortVersionString="2.1.0-beta21" sparkle:edSignature="0c4QG8QLrI8pMJNJmfzLUJYnJWGXSzjDFSU2JeNhaqwa9w62w5ZVXI6X0k6sQ8iPEiJvGHVs5gZ1XTTuWJtAAA==" length="1408467" type="application/octet-stream"/>
-        </item>
-        <item>
-            <title>Version 2.1.0 (Beta)</title>
-            <sparkle:channel>beta</sparkle:channel>
-            <description><![CDATA[
-                    <p style="background:#fff3cd;border:1px solid #ffc107;border-radius:6px;padding:8px 12px;margin-bottom:12px;color:#856404;font-size:0.9em;">
-                        ⚠️ <strong>Beta Release</strong> — This version may be unstable. Only install if you want to test new features early.
-                    </p>
-                    <ul>
-                    </ul><h3>What's New</h3><ul>
-                        <li>🎨 New onboarding flow — guides through extension setup and update settings on first launch</li>
-                        <li>⚙️ Update preferences (auto-check, auto-download, beta channel) now configurable during setup</li>
-                    </ul><h3>Under the Hood</h3><ul>
-                        <li>🔧 Builds and releases are now fully automated via GitHub Actions</li>
-                        <li>🧪 Beta release channel — opt in to test upcoming features before they reach the stable release</li>
-                    </ul>
-                ]]></description>
-            <pubDate>Tue, 16 Jun 2026 20:20:09 +0000</pubDate>
-            <enclosure url="https://github.com/vordenken/AutoPiP/releases/download/v2.1.0-beta19/AutoPiP.dmg" sparkle:version="42" sparkle:shortVersionString="2.1.0-beta19" sparkle:edSignature="FJhZ1kQvyn1f8ycFStxOJVGdaqF1ekuW6L5A2eks8qiKUx1wy0VMcGqtVFnwOGOUhfepM9bqEEHr2z/dRDWyBQ==" length="1408342" type="application/octet-stream"/>
-        </item>
-        <item>
-            <title>Version 2.1.0 (Beta)</title>
-            <sparkle:channel>beta</sparkle:channel>
-            <description><![CDATA[
-                    <p style="background:#fff3cd;border:1px solid #ffc107;border-radius:6px;padding:8px 12px;margin-bottom:12px;color:#856404;font-size:0.9em;">
-                        ⚠️ <strong>Beta Release</strong> — This version may be unstable. Only install if you want to test new features early.
-                    </p>
-                    <ul>
-                    </ul><h3>What's New</h3><ul>
-                        <li>🎨 New onboarding flow — guides through extension setup and update settings on first launch</li>
-                        <li>⚙️ Update preferences (auto-check, auto-download, beta channel) now configurable during setup</li>
-                    </ul><h3>Under the Hood</h3><ul>
-                        <li>🔧 Builds and releases are now fully automated via GitHub Actions</li>
-                        <li>🧪 Beta release channel — opt in to test upcoming features before they reach the stable release</li>
-                    </ul>
-                ]]></description>
-            <pubDate>Tue, 16 Jun 2026 20:16:51 +0000</pubDate>
-            <enclosure url="https://github.com/vordenken/AutoPiP/releases/download/v2.1.0-beta18/AutoPiP.dmg" sparkle:version="40" sparkle:shortVersionString="2.1.0-beta18" sparkle:edSignature="M5aCqC0XjFihvWrAyrn/I32MbmHYNV2YOJapT+hoOfBxoDU0eneTsogs/ZqEDdKAXhdTrcIveyUBvHPsUkiDAw==" length="1408244" type="application/octet-stream"/>
-        </item>
-        <item>
-            <title>Version 2.1.0 (Beta)</title>
-            <sparkle:channel>beta</sparkle:channel>
-            <description><![CDATA[
-                    <p style="background:#fff3cd;border:1px solid #ffc107;border-radius:6px;padding:8px 12px;margin-bottom:12px;color:#856404;font-size:0.9em;">
-                        ⚠️ <strong>Beta Release</strong> — This version may be unstable. Only install if you want to test new features early.
-                    </p>
-                    <ul>
-                    </ul><h3>What's New</h3><ul>
-                        <li>🎨 New onboarding flow — guides through extension setup and update settings on first launch</li>
-                        <li>⚙️ Update preferences (auto-check, auto-download, beta channel) now configurable during setup</li>
-                    </ul><h3>Under the Hood</h3><ul>
-                        <li>🔧 Builds and releases are now fully automated via GitHub Actions</li>
-                        <li>🧪 Beta release channel — opt in to test upcoming features before they reach the stable release</li>
-                    </ul>
-                ]]></description>
-            <pubDate>Tue, 16 Jun 2026 20:15:10 +0000</pubDate>
-            <enclosure url="https://github.com/vordenken/AutoPiP/releases/download/v2.1.0-beta17/AutoPiP.dmg" sparkle:version="39" sparkle:shortVersionString="2.1.0-beta17" sparkle:edSignature="UDVNeR8FgxTqkJF+Isbl2eKv2oc1GqmCizTn2LhjkMIob30qmvKXb1N3XM/FakOObJ0+VxwwG7yaCPUHYdc1DQ==" length="1408269" type="application/octet-stream"/>
-        </item>
-        <item>
-            <title>Version 2.1.0 (Beta)</title>
-            <sparkle:channel>beta</sparkle:channel>
-            <description><![CDATA[
-                    <p style="background:#fff3cd;border:1px solid #ffc107;border-radius:6px;padding:8px 12px;margin-bottom:12px;color:#856404;font-size:0.9em;">
-                        ⚠️ <strong>Beta Release</strong> — This version may be unstable. Only install if you want to test new features early.
-                    </p>
-                    <ul>
-                    </ul><h3>What's New</h3><ul>
-                        <li>🎨 New onboarding flow — guides through extension setup and update settings on first launch</li>
-                        <li>⚙️ Update preferences (auto-check, auto-download, beta channel) now configurable during setup</li>
-                    </ul><h3>Under the Hood</h3><ul>
-                        <li>🔧 Builds and releases are now fully automated via GitHub Actions</li>
-                        <li>🧪 Beta release channel — opt in to test upcoming features before they reach the stable release</li>
-                    </ul>
-                ]]></description>
-            <pubDate>Tue, 16 Jun 2026 20:13:20 +0000</pubDate>
-            <enclosure url="https://github.com/vordenken/AutoPiP/releases/download/v2.1.0-beta16/AutoPiP.dmg" sparkle:version="38" sparkle:shortVersionString="2.1.0-beta16" sparkle:edSignature="YahtofLBW61MAnyfbP5KHASS2LP6EV2lpQf6MTD7nzgTPgHwizMU+rTik1EAnfvKBqhVomPCqbM9VAIUiYurAQ==" length="1408391" type="application/octet-stream"/>
+            <pubDate>Mon, 31 Aug 2026 15:48:08 +0000</pubDate>
+            <enclosure url="https://github.com/vordenken/AutoPiP/releases/download/v2.1.0/AutoPiP.dmg" sparkle:version="45" sparkle:shortVersionString="2.1.0" sparkle:edSignature="nh0orkvwmXByBeAS64pX2ZSGnQN3wIv1NTKqbToiNaoKBDmgkl1i5j8NGC92zJX1z/xSTcGzGxb2tMRd4is1DQ==" length="1408511" type="application/octet-stream"/>
         </item>
         <item>
             <title>Version 2.0.0</title>
