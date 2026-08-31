@@ -141,11 +141,17 @@ test('release workflow preserves immutable and serialized publishing', () => {
     assert.match(workflow, /git diff --quiet.*semver\.txt/);
     assert.match(workflow, /refusing to move it/);
     assert.match(workflow, /git show origin\/main:appcast\.xml/);
-    assert.match(workflow, /git push origin HEAD:main/);
+    assert.match(workflow, /git worktree add --detach.*origin\/main/);
+    assert.match(workflow, /git -C .* push origin HEAD:main/);
+    assert.match(workflow, /CREATE_DMG_VERSION: '1\.3\.0'/);
+    assert.match(workflow, /create-dmg\/archive\/refs\/tags\/v\$\{CREATE_DMG_VERSION\}/);
     assert.match(workflow, /SPARKLE_VERSION: '2\.9\.3'/);
     assert.match(workflow, /python3 scripts\/update_appcast\.py/);
+    assert.match(workflow, /git tag --points-at.*GITHUB_SHA/s);
+    assert.match(workflow, /Reusing.*for a retry/);
     assert.match(workflow, /tail -1 \|\| true/);
-    assert.equal((workflow.match(/git push origin HEAD:main/g) || []).length, 1);
+    assert.doesNotMatch(workflow, /git checkout -B appcast-main/);
+    assert.doesNotMatch(workflow, /brew install create-dmg/);
     assert.doesNotMatch(workflow, /git tag -f|git push[^\n]*--force/);
 });
 

@@ -28,6 +28,7 @@ permissions:
   contents: read
 
 env:
+  CREATE_DMG_VERSION: '1.3.0'
   SPARKLE_VERSION: '2.9.3'
 
 jobs:
@@ -130,13 +131,21 @@ jobs:
             CHANNEL="stable"
             PRERELEASE=false
           else
-            LATEST=$(git tag -l "v${VERSION}-beta*" \
-              | sed "s/v${VERSION}-beta//" \
-              | grep -E '^[0-9]+$' \
-              | sort -n \
+            TAG=$(git tag --points-at "$GITHUB_SHA" \
+              | grep -E "^v${VERSION}-beta[0-9]+$" \
+              | sort -V \
               | tail -1 || true)
-            BETA_NUMBER=$(( ${LATEST:-0} + 1 ))
-            TAG="v${VERSION}-beta${BETA_NUMBER}"
+            if [ -z "$TAG" ]; then
+              LATEST=$(git tag -l "v${VERSION}-beta*" \
+                | sed "s/v${VERSION}-beta//" \
+                | grep -E '^[0-9]+$' \
+                | sort -n \
+                | tail -1 || true)
+              BETA_NUMBER=$(( ${LATEST:-0} + 1 ))
+              TAG="v${VERSION}-beta${BETA_NUMBER}"
+            else
+              echo "Reusing $TAG for a retry of $GITHUB_SHA"
+            fi
             CHANNEL="beta"
             PRERELEASE=true
           fi
@@ -227,8 +236,13 @@ jobs:
             exit 1
           fi
 
-          brew install create-dmg
-          create-dmg \
+          CREATE_DMG_ARCHIVE="$RUNNER_TEMP/create-dmg.tar.gz"
+          curl --fail --location --silent --show-error \
+            "https://github.com/create-dmg/create-dmg/archive/refs/tags/v${CREATE_DMG_VERSION}.tar.gz" \
+            --output "$CREATE_DMG_ARCHIVE"
+          tar -xzf "$CREATE_DMG_ARCHIVE" -C "$RUNNER_TEMP"
+
+          "$RUNNER_TEMP/create-dmg-${CREATE_DMG_VERSION}/create-dmg" \
             --volname "AutoPiP" \
             --window-pos 200 120 \
             --window-size 600 400 \
@@ -344,20 +358,21 @@ jobs:
         env:
           TAG: ${{ steps.release.outputs.tag }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
           git fetch origin main
-          git checkout -B appcast-main origin/main
-          cp "$RUNNER_TEMP/appcast.xml" appcast.xml
-          git add appcast.xml
+          APPCAST_WORKTREE="$RUNNER_TEMP/appcast-main"
+          git worktree add --detach "$APPCAST_WORKTREE" origin/main
+          git -C "$APPCAST_WORKTREE" config user.name "github-actions[bot]"
+          git -C "$APPCAST_WORKTREE" config user.email "github-actions[bot]@users.noreply.github.com"
+          cp "$RUNNER_TEMP/appcast.xml" "$APPCAST_WORKTREE/appcast.xml"
+          git -C "$APPCAST_WORKTREE" add appcast.xml
 
-          if git diff --cached --quiet; then
+          if git -C "$APPCAST_WORKTREE" diff --cached --quiet; then
             echo "appcast.xml is already current"
             exit 0
           fi
 
-          git commit -m "chore: update appcast for ${TAG}"
-          git push origin HEAD:main
+          git -C "$APPCAST_WORKTREE" commit -m "chore: update appcast for ${TAG}"
+          git -C "$APPCAST_WORKTREE" push origin HEAD:main
 
       - name: Cleanup keychain
         if: always()
