@@ -11,6 +11,23 @@ import WebKit
 
 let extensionBundleIdentifier = "com.vd.AutoPiP.Extension"
 
+struct OnboardingSettings {
+    let autoCheck: Bool?
+    let autoDownload: Bool?
+    let beta: Bool?
+
+    init?(jsonString: String) {
+        guard let data = jsonString.data(using: .utf8),
+              let values = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+
+        autoCheck = values["autoCheck"] as? Bool
+        autoDownload = values["autoDownload"] as? Bool
+        beta = values["beta"] as? Bool
+    }
+}
+
 class ViewController: NSViewController, WKNavigationDelegate, WKScriptMessageHandler {
 
     @IBOutlet var webView: WKWebView!
@@ -104,17 +121,16 @@ class ViewController: NSViewController, WKNavigationDelegate, WKScriptMessageHan
     }
 
     private func handleOnboardingDone(_ jsonString: String) {
-        guard let data = jsonString.data(using: .utf8),
-              let settings = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+        guard let settings = OnboardingSettings(jsonString: jsonString),
               let uc = (NSApp.delegate as? AppDelegate)?.updateController else { return }
 
-        if let autoCheck = settings["autoCheck"] as? Bool {
+        if let autoCheck = settings.autoCheck {
             uc.automaticallyChecksForUpdates = autoCheck
         }
-        if let autoDownload = settings["autoDownload"] as? Bool {
+        if let autoDownload = settings.autoDownload {
             uc.automaticallyDownloadsUpdates = autoDownload
         }
-        if let beta = settings["beta"] as? Bool {
+        if let beta = settings.beta {
             uc.isBetaUpdatesEnabled = beta
         }
 

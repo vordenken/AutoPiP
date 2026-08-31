@@ -16,7 +16,7 @@ AutoPiP is built and released automatically via GitHub Actions. **`semver.txt`**
 
 ### semver.txt Format
 
-```
+```text
 2.1.0
 ---
 - First changelog entry
@@ -28,30 +28,45 @@ AutoPiP is built and released automatically via GitHub Actions. **`semver.txt`**
 
 - **Line 1:** Current version (valid [semver](https://semver.org/))
 - **`---`:** Separator
-- **Lines after `---`:** Changelog for the current version (Markdown list items, optional `### ` headings)
+- **Lines after `---`:** Changelog for the current version (Markdown list items, optional headings prefixed by `###`)
 - **`## x.y.z`:** Previous release changelogs (preserved history)
 
 ### Workflow
 
 1. Create a `feature/*` branch from `main`
 2. Set the version and changelog in `semver.txt`
-3. Push — every push to `feature/*` creates a new beta release:
+3. Push — every release-relevant push to `feature/*` creates a new beta release:
    - First push → `v2.1.0-beta1`
    - Second push → `v2.1.0-beta2` (auto-incremented from existing tags)
    - Beta releases are never overwritten
 4. Merge to `main` when ready — creates stable release `v2.1.0`
    - On `main`, the workflow only runs when `semver.txt` changes
 
+Documentation-only, repository metadata, test-only, and generated `appcast.xml`
+changes do not trigger releases.
+`workflow_dispatch` releases the selected branch using the version from
+`semver.txt`: `main` produces a stable release, while `feature/*` produces the
+next beta.
+
 The workflow automatically:
+
 - Sets the version in the Xcode project and `manifest.json`
+- Runs the JavaScript and Swift unit tests before importing signing credentials
 - Builds, archives, and creates a DMG
 - Signs the DMG with the code signing certificate and Sparkle EdDSA
 - Creates a Git tag and GitHub Release with changelog + installation instructions
-- Updates `appcast.xml` (with changelog as `<description>`) on the working branch and `main`
+- Updates the canonical `appcast.xml` on `main` after publishing the release
+- Keeps all stable feed entries and the five newest beta entries
+
+Release jobs are serialized because all branches share one tag namespace and one
+canonical appcast. Running jobs are never cancelled, and existing tags are never
+moved. The workflow downloads the Sparkle tools at the version pinned by SwiftPM
+before signing.
 
 ### GitHub App for Branch Protection
 
 If `main` has branch protection, the workflow needs a GitHub App to push the appcast update. Create a GitHub App with **Contents: Read & Write** permission, install it on the repo, then:
+
 - Add variable `CLIENT_ID` with the App's client ID
 - Add secret `APP_PRIVATE_KEY` with the App's private key
 - Add the App to the branch protection bypass list
@@ -59,7 +74,7 @@ If `main` has branch protection, the workflow needs a GitHub App to push the app
 ## Repository Secrets
 
 | Secret / Variable | Required | Description |
-|-------------------|----------|-------------|
+| ----------------- | -------- | ----------- |
 | `BUILD_CERTIFICATE_BASE64` | **Yes** | Base64-encoded `.p12` signing certificate |
 | `P12_PASSWORD` | **Yes** | Password for the `.p12` file |
 | `SPARKLE_PRIVATE_KEY` | **Yes** | EdDSA private key for Sparkle update signatures |

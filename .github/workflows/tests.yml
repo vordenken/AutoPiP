@@ -1,0 +1,46 @@
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches: [main, 'feature/*']
+    paths:
+      - '.github/actionlint.yaml'
+      - '.github/workflows/build-release.yml'
+      - '.github/workflows/tests.yml'
+      - 'AutoPiP/**'
+      - 'AutoPiP Extension/**'
+      - 'AutoPiPTests/**'
+      - 'scripts/**'
+      - 'tests/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  javascript:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Run JavaScript tests
+        run: node --test tests/*.test.js
+
+  swift:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v6
+      - name: Run Swift unit tests
+        run: |
+          xcodebuild test \
+            -project AutoPiP.xcodeproj \
+            -scheme AutoPiP \
+            -destination 'platform=macOS' \
+            -only-testing:AutoPiPTests \
+            CODE_SIGNING_ALLOWED=NO

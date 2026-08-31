@@ -31,6 +31,10 @@ playground.xcworkspace
 
 .build/
 
+# Python release tooling
+__pycache__/
+*.py[cod]
+
 # CocoaPods
 #
 # We recommend against adding the Pods directory to your .gitignore. However
