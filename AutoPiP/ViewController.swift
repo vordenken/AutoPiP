@@ -11,6 +11,23 @@ import WebKit
 
 let extensionBundleIdentifier = "com.vd.AutoPiP.Extension"
 
+struct OnboardingSettings {
+    let autoCheck: Bool?
+    let autoDownload: Bool?
+    let beta: Bool?
+
+    init?(jsonString: String) {
+        guard let data = jsonString.data(using: .utf8),
+              let values = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+
+        autoCheck = values["autoCheck"] as? Bool
+        autoDownload = values["autoDownload"] as? Bool
+        beta = values["beta"] as? Bool
+    }
+}
+
 class ViewController: NSViewController, WKNavigationDelegate, WKScriptMessageHandler {
 
     @IBOutlet var webView: WKWebView!
@@ -26,30 +43,110 @@ class ViewController: NSViewController, WKNavigationDelegate, WKScriptMessageHan
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        SFSafariExtensionManager.getStateOfSafariExtension(withIdentifier: extensionBundleIdentifier) { (state, error) in
-            guard let state = state, error == nil else {
-                // Insert code to inform the user that something went wrong.
-                return
-            }
+        if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
+            webView.evaluateJavaScript("setVersion('\(version)')")
+        }
 
+        let onboardingDone = UserDefaults.standard.bool(forKey: "OnboardingCompleted")
+
+        if !onboardingDone {
+            webView.evaluateJavaScript("startOnboarding()")
+            return
+        }
+
+        showMainView()
+    }
+
+    private func showMainView() {
+        SFSafariExtensionManager.getStateOfSafariExtension(withIdentifier: extensionBundleIdentifier) { (state, error) in
             DispatchQueue.main.async {
+                guard let state = state, error == nil else {
+                    self.webView.evaluateJavaScript("show(null, true)")
+                    return
+                }
+
                 if #available(macOS 13, *) {
-                    webView.evaluateJavaScript("show(\(state.isEnabled), true)")
+                    self.webView.evaluateJavaScript("show(\(state.isEnabled), true)")
                 } else {
-                    webView.evaluateJavaScript("show(\(state.isEnabled), false)")
+                    self.webView.evaluateJavaScript("show(\(state.isEnabled), false)")
                 }
             }
+        }
+
+        if let appDelegate = NSApp.delegate as? AppDelegate {
+            let uc = appDelegate.updateController
+            let json = """
+            {autoCheck:\(uc.automaticallyChecksForUpdates),autoDownload:\(uc.automaticallyDownloadsUpdates),beta:\(uc.isBetaUpdatesEnabled)}
+            """
+            webView.evaluateJavaScript("setUpdateSettings(\(json))")
         }
     }
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        if (message.body as! String != "open-preferences") {
-            return;
+        guard let body = message.body as? String else { return }
+
+        if body == "open-preferences" {
+            openSafariAndQuit()
+            return
         }
 
+        if body.hasPrefix("open-url:") {
+            let urlString = String(body.dropFirst("open-url:".count))
+            if let url = URL(string: urlString) {
+                NSWorkspace.shared.open(url)
+            }
+            return
+        }
+
+        if body.hasPrefix("onboarding-done:") {
+            let jsonString = String(body.dropFirst("onboarding-done:".count))
+            handleOnboardingDone(jsonString)
+            return
+        }
+
+        guard let uc = (NSApp.delegate as? AppDelegate)?.updateController else { return }
+
+        switch body {
+        case "check-for-updates":
+            uc.checkForUpdates()
+        case let s where s.hasPrefix("set-auto-check:"):
+            uc.automaticallyChecksForUpdates = s.hasSuffix("true")
+        case let s where s.hasPrefix("set-auto-download:"):
+            uc.automaticallyDownloadsUpdates = s.hasSuffix("true")
+        case let s where s.hasPrefix("set-beta:"):
+            uc.isBetaUpdatesEnabled = s.hasSuffix("true")
+        default:
+            break
+        }
+    }
+
+    private func handleOnboardingDone(_ jsonString: String) {
+        guard let settings = OnboardingSettings(jsonString: jsonString),
+              let uc = (NSApp.delegate as? AppDelegate)?.updateController else { return }
+
+        if let autoCheck = settings.autoCheck {
+            uc.automaticallyChecksForUpdates = autoCheck
+        }
+        if let autoDownload = settings.autoDownload {
+            uc.automaticallyDownloadsUpdates = autoDownload
+        }
+        if let beta = settings.beta {
+            uc.isBetaUpdatesEnabled = beta
+        }
+
+        UserDefaults.standard.set(true, forKey: "OnboardingCompleted")
+        openSafariAndQuit()
+    }
+
+    private func openSafariAndQuit() {
         SFSafariApplication.showPreferencesForExtension(withIdentifier: extensionBundleIdentifier) { error in
             DispatchQueue.main.async {
-                NSApplication.shared.terminate(nil)
+                if error != nil, let safariURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Safari") {
+                    NSWorkspace.shared.openApplication(at: safariURL, configuration: NSWorkspace.OpenConfiguration())
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    NSApplication.shared.terminate(nil)
+                }
             }
         }
     }

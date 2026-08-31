@@ -574,12 +574,29 @@ function togglePiP() {
         disablePiP();
     } else {
         debugLog('Keyboard shortcut: enabling PiP (manual override)');
-        try {
-            if (!setWebkitPresentationMode(video, 'picture-in-picture')) {
-                debugLog('PiP not supported on this video element');
+        // Prefer the W3C requestPictureInPicture API here: unlike webkitSetPresentationMode,
+        // it uses the video's natural (intrinsic) dimensions rather than its CSS-rendered size.
+        // This prevents the "video small in corner" bug when e.g. YouTube's mini-player is
+        // active and the video element is currently rendered at a small size.
+        if (typeof video.requestPictureInPicture === 'function') {
+            video.requestPictureInPicture().catch(error => {
+                debugLog('requestPictureInPicture failed, falling back to webkit API:', error.message);
+                try {
+                    if (!setWebkitPresentationMode(video, 'picture-in-picture')) {
+                        debugLog('PiP not supported on this video element');
+                    }
+                } catch (e) {
+                    console.error('[AutoPiP] Keyboard PiP toggle exception:', e.message || e);
+                }
+            });
+        } else {
+            try {
+                if (!setWebkitPresentationMode(video, 'picture-in-picture')) {
+                    debugLog('PiP not supported on this video element');
+                }
+            } catch (error) {
+                console.error('[AutoPiP] Keyboard PiP toggle exception:', error.message || error);
             }
-        } catch (error) {
-            console.error('[AutoPiP] Keyboard PiP toggle exception:', error.message || error);
         }
     }
 }

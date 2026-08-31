@@ -1,0 +1,8 @@
+config-variables: null
+
+paths:
+  .github/workflows/build-release.yml:
+    ignore:
+      # actionlint 1.7.12 still models the old v3 schema. Current v3 uses
+      # client-id and marks app-id as deprecated.
+      - '(missing input "app-id"|input "client-id" is not defined).*actions/create-github-app-token@v3'

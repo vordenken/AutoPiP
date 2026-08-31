@@ -3,19 +3,51 @@
 
 import Sparkle
 
+private class UpdaterDelegate: NSObject, SPUUpdaterDelegate {
+    func allowedChannels(for updater: SPUUpdater) -> Set<String> {
+        UserDefaults.standard.bool(forKey: "BetaUpdatesEnabled") ? Set(["beta"]) : Set()
+    }
+}
+
 class UpdateController {
+    private let delegate = UpdaterDelegate()
     private let updaterController: SPUStandardUpdaterController
     
+    var updater: SPUUpdater { updaterController.updater }
+    
     init() {
-        // Initialisiere den Updater
         updaterController = SPUStandardUpdaterController(
             startingUpdater: true,
-            updaterDelegate: nil,
+            updaterDelegate: delegate,
             userDriverDelegate: nil
         )
     }
     
     func checkForUpdates() {
         updaterController.checkForUpdates(nil)
+    }
+    
+    var automaticallyChecksForUpdates: Bool {
+        get { updater.automaticallyChecksForUpdates }
+        set {
+            updater.automaticallyChecksForUpdates = newValue
+            if !newValue { updater.automaticallyDownloadsUpdates = false }
+        }
+    }
+
+    var automaticallyDownloadsUpdates: Bool {
+        get { updater.automaticallyDownloadsUpdates }
+        set {
+            if newValue { updater.automaticallyChecksForUpdates = true }
+            updater.automaticallyDownloadsUpdates = newValue
+        }
+    }
+    
+    var isBetaUpdatesEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: "BetaUpdatesEnabled") }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "BetaUpdatesEnabled")
+            updater.resetUpdateCycleAfterShortDelay()
+        }
     }
 }
