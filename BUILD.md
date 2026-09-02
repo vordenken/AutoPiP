@@ -56,7 +56,13 @@ The workflow automatically:
 - Signs the DMG with the code signing certificate and Sparkle EdDSA
 - Creates a Git tag and GitHub Release with changelog + installation instructions
 - Updates the canonical `appcast.xml` on `main` after publishing the release
+- Updates the Homebrew cask version and checksum from the stable release DMG
 - Keeps all stable feed entries and the five newest beta entries
+
+The Homebrew cask is updated only for stable releases. No additional release step
+is required: changing `semver.txt` and merging to `main` remains the source of
+truth for the GitHub release, Sparkle appcast, and Homebrew cask. Beta releases do
+not modify the cask.
 
 Release jobs are serialized because all branches share one tag namespace and one
 canonical appcast. Running jobs are never cancelled, and existing tags are never

@@ -356,7 +356,9 @@ jobs:
 
       - name: Publish canonical appcast
         env:
+          CHANNEL: ${{ steps.release.outputs.channel }}
           TAG: ${{ steps.release.outputs.tag }}
+          VERSION: ${{ steps.release.outputs.version }}
         run: |
           git fetch origin main
           APPCAST_WORKTREE="$RUNNER_TEMP/appcast-main"
@@ -366,12 +368,20 @@ jobs:
           cp "$RUNNER_TEMP/appcast.xml" "$APPCAST_WORKTREE/appcast.xml"
           git -C "$APPCAST_WORKTREE" add appcast.xml
 
+          if [ "$CHANNEL" = "stable" ]; then
+            python3 scripts/update_homebrew_cask.py \
+              --cask "$APPCAST_WORKTREE/Casks/autopip.rb" \
+              --version "$VERSION" \
+              --archive "$RUNNER_TEMP/AutoPiP.dmg"
+            git -C "$APPCAST_WORKTREE" add Casks/autopip.rb
+          fi
+
           if git -C "$APPCAST_WORKTREE" diff --cached --quiet; then
-            echo "appcast.xml is already current"
+            echo "Release metadata is already current"
             exit 0
           fi
 
-          git -C "$APPCAST_WORKTREE" commit -m "chore: update appcast for ${TAG}"
+          git -C "$APPCAST_WORKTREE" commit -m "chore: update release metadata for ${TAG}"
           git -C "$APPCAST_WORKTREE" push origin HEAD:main
 
       - name: Cleanup keychain

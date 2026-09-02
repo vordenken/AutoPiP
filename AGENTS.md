@@ -146,7 +146,8 @@ The release workflow:
 4. Archives and signs the app, then creates the DMG.
 5. Signs the DMG with Sparkle's EdDSA tool.
 6. Publishes the GitHub Release.
-7. Updates the canonical appcast on `main`.
+7. Updates the canonical appcast and, for stable releases, the Homebrew cask on
+  `main`.
 
 Release jobs are globally serialized because all branches share tags and one
 appcast. Running releases are not cancelled. GitHub Actions use floating major
@@ -253,6 +254,7 @@ Perform the applicable Safari smoke tests before release:
 - Release source of truth: `semver.txt`
 - Release orchestration: `.github/workflows/build-release.yml`
 - Appcast transformation: `scripts/update_appcast.py`
+- Homebrew cask transformation: `scripts/update_homebrew_cask.py`
 - Automated checks: `.github/workflows/tests.yml`, `tests/`, and `AutoPiPTests/`
 
 ---
