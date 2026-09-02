@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -7,6 +8,7 @@ const test = require('node:test');
 
 const repositoryRoot = path.join(__dirname, '..');
 const updateAppcast = path.join(repositoryRoot, 'scripts', 'update_appcast.py');
+const updateHomebrewCask = path.join(repositoryRoot, 'scripts', 'update_homebrew_cask.py');
 const workflowPath = path.join(repositoryRoot, '.github', 'workflows', 'build-release.yml');
 const packageResolutionPath = path.join(
     repositoryRoot,
@@ -72,6 +74,19 @@ function assertValidXml(appcast) {
     assert.equal(result.status, 0, result.stderr);
 }
 
+function createCaskFixture() {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'autopip-cask-'));
+    const cask = path.join(directory, 'autopip.rb');
+    const archive = path.join(directory, 'AutoPiP.dmg');
+    fs.writeFileSync(cask, `cask "autopip" do
+  version "2.1.0"
+  sha256 "${'0'.repeat(64)}"
+end
+`);
+    fs.writeFileSync(archive, 'AutoPiP release fixture\n');
+    return { directory, cask, archive };
+}
+
 test('beta update keeps five newest betas and every stable release', (context) => {
     const fixture = createFixture([
         appcastItem('2.1.0-beta6', { beta: true, build: 46 }),
@@ -128,6 +143,59 @@ test('appcast updater rejects a tag that does not match the release channel', (c
     assert.match(result.stderr, /does not match stable version/);
 });
 
+test('Homebrew cask updater writes the release version and archive checksum', (context) => {
+    const fixture = createCaskFixture();
+    context.after(() => fs.rmSync(fixture.directory, { recursive: true, force: true }));
+
+    const result = spawnSync('python3', [
+        updateHomebrewCask,
+        '--cask', fixture.cask,
+        '--version', '2.2.0',
+        '--archive', fixture.archive
+    ], { encoding: 'utf8' });
+
+    assert.equal(result.status, 0, result.stderr);
+    const output = fs.readFileSync(fixture.cask, 'utf8');
+    const checksum = crypto.createHash('sha256').update(fs.readFileSync(fixture.archive)).digest('hex');
+    assert.match(output, /version "2\.2\.0"/);
+    assert.match(output, new RegExp(`sha256 "${checksum}"`));
+});
+
+test('Homebrew cask updater rejects invalid versions without changing the cask', (context) => {
+    const fixture = createCaskFixture();
+    context.after(() => fs.rmSync(fixture.directory, { recursive: true, force: true }));
+    const before = fs.readFileSync(fixture.cask, 'utf8');
+
+    const result = spawnSync('python3', [
+        updateHomebrewCask,
+        '--cask', fixture.cask,
+        '--version', '2.2.0-beta1',
+        '--archive', fixture.archive
+    ], { encoding: 'utf8' });
+
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /Invalid version/);
+    assert.equal(fs.readFileSync(fixture.cask, 'utf8'), before);
+});
+
+test('Homebrew cask updater rejects duplicate stanzas without changing the cask', (context) => {
+    const fixture = createCaskFixture();
+    context.after(() => fs.rmSync(fixture.directory, { recursive: true, force: true }));
+    fs.appendFileSync(fixture.cask, `  version "2.1.0"\n  sha256 "${'0'.repeat(64)}"\n`);
+    const before = fs.readFileSync(fixture.cask, 'utf8');
+
+    const result = spawnSync('python3', [
+        updateHomebrewCask,
+        '--cask', fixture.cask,
+        '--version', '2.2.0',
+        '--archive', fixture.archive
+    ], { encoding: 'utf8' });
+
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /exactly one version and SHA-256 stanza/);
+    assert.equal(fs.readFileSync(fixture.cask, 'utf8'), before);
+});
+
 test('release workflow preserves immutable and serialized publishing', () => {
     const workflow = fs.readFileSync(workflowPath, 'utf8');
 
@@ -147,6 +215,9 @@ test('release workflow preserves immutable and serialized publishing', () => {
     assert.match(workflow, /create-dmg\/archive\/refs\/tags\/v\$\{CREATE_DMG_VERSION\}/);
     assert.match(workflow, /SPARKLE_VERSION: '2\.9\.3'/);
     assert.match(workflow, /python3 scripts\/update_appcast\.py/);
+    assert.match(workflow, /if \[ "\$CHANNEL" = "stable" \]; then/);
+    assert.match(workflow, /python3 scripts\/update_homebrew_cask\.py/);
+    assert.match(workflow, /--archive "\$RUNNER_TEMP\/AutoPiP\.dmg"/);
     assert.match(workflow, /git tag --points-at.*GITHUB_SHA/s);
     assert.match(workflow, /Reusing.*for a retry/);
     assert.match(workflow, /tail -1 \|\| true/);

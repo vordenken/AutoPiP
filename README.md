@@ -26,6 +26,18 @@ A Safari extension that automatically enables Picture-in-Picture (PiP) mode for 
 
 ## 🚀 Quick Start
 
+### Homebrew
+
+```bash
+brew tap vordenken/autopip https://github.com/vordenken/AutoPiP
+brew install --cask vordenken/autopip/autopip
+```
+
+The Homebrew cask removes the quarantine attribute during installation. Launch
+AutoPiP once, then enable it in Safari → Settings → Extensions.
+
+### Manual installation
+
 > **⚠️ macOS Gatekeeper:** AutoPiP is not notarized by Apple. macOS will block both the DMG and the app with a security warning — this is expected. Follow the steps below to allow them. Once installed, **updates via Sparkle work without this workaround**.
 
 1. Download the latest `AutoPiP.dmg` from [Releases](https://github.com/vordenken/AutoPiP/releases)

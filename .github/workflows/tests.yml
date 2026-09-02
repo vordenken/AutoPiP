@@ -8,6 +8,7 @@ on:
       - '.github/actionlint.yaml'
       - '.github/workflows/build-release.yml'
       - '.github/workflows/tests.yml'
+      - 'Casks/**'
       - 'AutoPiP/**'
       - 'AutoPiP Extension/**'
       - 'AutoPiPTests/**'
