@@ -22,7 +22,7 @@ cask "autopip" do
   preflight_steps do
     run "/usr/bin/xattr",
         args:         ["-dr", "com.apple.quarantine", "{{staged_path}}/AutoPiP.app"],
-        must_succeed: false
+        must_succeed: true
   end
 
   uninstall quit: "com.vd.AutoPiP"

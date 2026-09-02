@@ -34,13 +34,12 @@ def update_cask(cask_path, version, archive_path):
     cask = cask_path.read_text(encoding="utf-8")
     checksum = archive_sha256(archive_path)
     cask, version_count = re.subn(
-        r'^  version "[^"]+"$', f'  version "{version}"', cask, count=1, flags=re.M
+        r'^  version "[^"]+"$', f'  version "{version}"', cask, flags=re.M
     )
     cask, checksum_count = re.subn(
         r'^  sha256 "[0-9a-f]{64}"$',
         f'  sha256 "{checksum}"',
         cask,
-        count=1,
         flags=re.M,
     )
     if version_count != 1 or checksum_count != 1:

@@ -178,6 +178,24 @@ test('Homebrew cask updater rejects invalid versions without changing the cask',
     assert.equal(fs.readFileSync(fixture.cask, 'utf8'), before);
 });
 
+test('Homebrew cask updater rejects duplicate stanzas without changing the cask', (context) => {
+    const fixture = createCaskFixture();
+    context.after(() => fs.rmSync(fixture.directory, { recursive: true, force: true }));
+    fs.appendFileSync(fixture.cask, `  version "2.1.0"\n  sha256 "${'0'.repeat(64)}"\n`);
+    const before = fs.readFileSync(fixture.cask, 'utf8');
+
+    const result = spawnSync('python3', [
+        updateHomebrewCask,
+        '--cask', fixture.cask,
+        '--version', '2.2.0',
+        '--archive', fixture.archive
+    ], { encoding: 'utf8' });
+
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /exactly one version and SHA-256 stanza/);
+    assert.equal(fs.readFileSync(fixture.cask, 'utf8'), before);
+});
+
 test('release workflow preserves immutable and serialized publishing', () => {
     const workflow = fs.readFileSync(workflowPath, 'utf8');
 
