@@ -3,6 +3,20 @@
     <channel>
         <title>AutoPiP Updates</title>
         <item>
+            <title>Version 2.1.1 (Beta)</title>
+            <sparkle:channel>beta</sparkle:channel>
+            <description><![CDATA[
+<p style="background:#fff3cd;border:1px solid #ffc107;border-radius:6px;padding:8px 12px;margin-bottom:12px;color:#856404;font-size:0.9em;">&#9888; <strong>Beta Release</strong> - This version may be unstable. Only install it if you want to test new features early.</p>
+<h3>Fixes</h3>
+<ul>
+<li>Restore automatic PiP when switching macOS Spaces with a replacement YouTube player such as Vinegar</li>
+<li>Close automatic PiP when returning to Safari even if another extension consumes visibility events</li>
+</ul>
+]]></description>
+            <pubDate>Fri, 25 Sep 2026 08:22:16 +0000</pubDate>
+            <enclosure url="https://github.com/vordenken/AutoPiP/releases/download/v2.1.1-beta1/AutoPiP.dmg" sparkle:version="47" sparkle:shortVersionString="2.1.1-beta1" sparkle:edSignature="oxPXl77UiWQ341HolEBNXXVAjb35IGXkEpHx0FuHlCBQqP+PAMbuTMvLpjsfV0GbWqhUKUgjg659mo9rLA4yCA==" length="1408695" type="application/octet-stream"/>
+        </item>
+        <item>
             <title>Version 2.1.0</title>
             <description><![CDATA[
 <h3>What&#x27;s New</h3>
