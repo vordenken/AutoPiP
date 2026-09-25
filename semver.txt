@@ -1,5 +1,10 @@
-2.1.0
+2.1.1
 ---
+### Fixes
+- Restore automatic PiP when switching macOS Spaces with a replacement YouTube player such as Vinegar
+- Close automatic PiP when returning to Safari even if another extension consumes visibility events
+
+## 2.1.0
 ### What's New
 - 🎨 New onboarding flow — guides through extension setup and update settings on first launch
 - ⚙️ Update preferences (auto-check, auto-download, beta channel) now configurable during setup

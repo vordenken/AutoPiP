@@ -1,0 +1,21 @@
+body {
+    font-family: system-ui, sans-serif;
+    margin: 2rem;
+}
+
+main {
+    max-width: 48rem;
+}
+
+video {
+    display: block;
+    max-width: 100%;
+    width: 40rem;
+}
+
+#history,
+#events {
+    display: block;
+    margin: 0.5rem 0 1rem;
+    width: min(100%, 40rem);
+}

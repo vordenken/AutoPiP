@@ -46,10 +46,11 @@ function createVideo(overrides = {}) {
     };
 }
 
-function loadContentScript({ hostname = 'www.youtube.com', storage = {}, video = createVideo() } = {}) {
+function loadContentScript({ hostname = 'www.youtube.com', storage = {}, video = createVideo(), deferFocusTimers = false } = {}) {
     let hasFocus = true;
     let mutationCallback;
     let queryCount = 0;
+    const pendingFocusTimers = [];
     const document = new FakeEventTarget();
     Object.assign(document, {
         hidden: false,
@@ -100,7 +101,11 @@ function loadContentScript({ hostname = 'www.youtube.com', storage = {}, video =
             observe() {}
             unobserve() {}
         },
-        setTimeout: (callback) => {
+        setTimeout: (callback, delay) => {
+            if (deferFocusTimers && delay === 100) {
+                pendingFocusTimers.push(callback);
+                return 1;
+            }
             callback();
             return 1;
         },
@@ -133,6 +138,9 @@ function loadContentScript({ hostname = 'www.youtube.com', storage = {}, video =
         },
         setFocus(value) {
             hasFocus = value;
+        },
+        runFocusTimers() {
+            for (const callback of pendingFocusTimers.splice(0)) callback();
         }
     };
 }
@@ -193,6 +201,55 @@ test('window focus changes enter and leave Picture-in-Picture', () => {
     harness.setFocus(true);
     harness.window.dispatch('focus', { isTrusted: true });
     assert.deepEqual(harness.video.presentationModes, ['picture-in-picture', 'inline']);
+});
+
+test('hidden window blur enters PiP when visibilitychange is consumed', () => {
+    const harness = loadContentScript();
+
+    harness.document.hidden = true;
+    harness.setFocus(false);
+    harness.window.dispatch('blur', { isTrusted: true });
+    assert.deepEqual(harness.video.presentationModes, ['picture-in-picture']);
+
+    // Both events can arrive in the usual Safari path; PiP should enter once.
+    harness.document.dispatch('visibilitychange', { isTrusted: true });
+    assert.deepEqual(harness.video.presentationModes, ['picture-in-picture']);
+});
+
+test('hidden blur respects the tab switch setting', () => {
+    const harness = loadContentScript();
+
+    harness.dispatchMessage({ command: 'toggleTabSwitch', enabled: false });
+    harness.document.hidden = true;
+    harness.setFocus(false);
+    harness.window.dispatch('blur', { isTrusted: true });
+    assert.deepEqual(harness.video.presentationModes, []);
+});
+
+test('focus closes PiP after a hidden Space becomes visible', () => {
+    const harness = loadContentScript({ deferFocusTimers: true });
+
+    harness.dispatchMessage({ command: 'toggleWindowSwitch', enabled: false });
+    harness.document.hidden = true;
+    harness.setFocus(false);
+    harness.window.dispatch('blur', { isTrusted: true });
+    harness.runFocusTimers();
+    assert.deepEqual(harness.video.presentationModes, ['picture-in-picture']);
+
+    harness.setFocus(true);
+    harness.window.dispatch('focus', { isTrusted: true });
+    harness.document.hidden = false;
+    harness.runFocusTimers();
+    assert.deepEqual(harness.video.presentationModes, ['picture-in-picture', 'inline']);
+});
+
+test('focus leaves manually started PiP alone when window switching is disabled', () => {
+    const harness = loadContentScript();
+
+    harness.dispatchMessage({ command: 'toggleWindowSwitch', enabled: false });
+    harness.video.webkitPresentationMode = 'picture-in-picture';
+    harness.window.dispatch('focus', { isTrusted: true });
+    assert.deepEqual(harness.video.presentationModes, []);
 });
 
 test('internal focus changes do not enter Picture-in-Picture', () => {

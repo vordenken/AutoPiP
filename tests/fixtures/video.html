@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AutoPiP Safari Fixture</title>
+    <link rel="stylesheet" href="video.css">
+    <script src="video.js" defer></script>
+</head>
+<body>
+    <main>
+        <h1>AutoPiP Safari Fixture</h1>
+        <button id="play" type="button">Play test video</button>
+        <p id="playback" aria-live="polite">Playback: stopped</p>
+        <p id="mode" aria-live="polite">PiP: inline</p>
+        <label for="history">PiP transitions</label>
+        <input id="history" type="text" readonly value="inline">
+        <label for="events">Visibility events</label>
+        <input id="events" type="text" readonly value="none">
+        <video id="test-video" src="video.mp4" controls loop playsinline preload="auto"></video>
+    </main>
+</body>
+</html>

@@ -19,6 +19,7 @@ let listMode = 'blacklist'; // 'blacklist' | 'whitelist'
 let keyboardShortcutEnabled = false;
 let keyboardShortcutKey = 'p';
 let keyboardShortcutModifier = 'alt';
+let hiddenBlurPiP = false;
 
 // Debug logging helper
 function debugLog(...args) {
@@ -330,17 +331,10 @@ document.addEventListener("visibilitychange", (event) => {
 });
 
 window.addEventListener("blur", (event) => {
-    // Ignore blur events triggered by tab switching
-    if (!event.isTrusted || document.hidden) {
+    if (!event.isTrusted) {
         return;
     }
 
-    // Check if window switch is enabled before proceeding
-    if (!windowSwitchEnabled) {
-        debugLog('Window switch is disabled, ignoring blur');
-        return;
-    }
-    
     // Wait briefly to check if focus moved to another element within the same document
     setTimeout(() => {
         // If focus is still within the document, it's just an internal focus change (e.g., clicking chat)
@@ -348,36 +342,52 @@ window.addEventListener("blur", (event) => {
             debugLog('Focus is still within document, ignoring blur');
             return;
         }
+
+        // Safari can hide a window before firing blur when switching Spaces.
+        // Handle that transition here too: another extension may consume the
+        // visibilitychange event before AutoPiP receives it.
+        if (document.hidden ? !tabSwitchEnabled : !windowSwitchEnabled) {
+            debugLog('Switch is disabled, ignoring blur; hidden:', document.hidden);
+            return;
+        }
         
         const video = getVideo();
         if (!video) return;
 
         if (isVideoPlayable(video)) {
-            debugLog('Enabling PiP on window blur');
+            debugLog('Enabling PiP on blur; hidden:', document.hidden);
+            const wasPiPActive = isPiPActive(video);
             enablePiP();
+            if (document.hidden && !wasPiPActive && isPiPActive(video)) {
+                hiddenBlurPiP = true;
+            }
         }
     }, FOCUS_CHECK_DELAY_MS);
 });
 
 window.addEventListener("focus", (event) => {
-    // Ignore focus events triggered by tab switching
-    if (!event.isTrusted || document.hidden) {
+    if (!event.isTrusted) {
         return;
     }
 
     // Check if window switch is enabled before proceeding
-    if (!windowSwitchEnabled) {
+    if (!windowSwitchEnabled && !hiddenBlurPiP) {
         debugLog('Window switch is disabled, ignoring focus');
         return;
     }
 
-    const video = getVideo();
-    if (!video) return;
+    // Focus can arrive before Safari marks a Space visible again. Vinegar may
+    // consume the following visibilitychange, so check the settled state here.
+    setTimeout(() => {
+        if (document.hidden || !document.hasFocus()) return;
 
-    if (!document.hidden && document.hasFocus() && isPiPActive(video)) {
-        debugLog('Disabling PiP on window focus');
-        disablePiP();
-    }
+        const video = getVideo();
+        if (video && isPiPActive(video)) {
+            debugLog('Disabling PiP on window focus');
+            disablePiP();
+        }
+        hiddenBlurPiP = false;
+    }, FOCUS_CHECK_DELAY_MS);
 });
 
 // IntersectionObserver for scroll-based PiP (better performance than scroll listener)
@@ -525,6 +535,8 @@ function enablePiP() {
         });
         return;
     }
+
+    if (isPiPActive(video)) return;
     
     try {
         if (setWebkitPresentationMode(video, 'picture-in-picture')) {
@@ -541,17 +553,20 @@ function enablePiP() {
 function disablePiP() {
     const video = getVideo();
     if (!video) {
+        hiddenBlurPiP = false;
         debugLog('No video element found for PiP disable');
         return;
     }
     
     if (!isPiPActive(video)) {
+        hiddenBlurPiP = false;
         debugLog('No active PiP to disable');
         return;
     }
 
     try {
         if (setWebkitPresentationMode(video, 'inline')) {
+            hiddenBlurPiP = false;
             debugLog('PiP disabled successfully');
         } else {
             debugLog('PiP disable failed - webkit API not available');
